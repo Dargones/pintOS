@@ -89,10 +89,11 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
+  int64_t start = timer_ticks (); //what time it is right now
 
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
+  ASSERT (intr_get_level () == INTR_ON); //if the inteupts are enabled
+  while (timer_elapsed (start) < ticks) //if ticks ticks passed since 
+  // the function was executed first
     thread_yield ();
 }
 
