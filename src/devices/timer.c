@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include "threads/malloc.h"
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -37,6 +38,7 @@ static void real_time_delay (int64_t num, int32_t denom);
 void
 timer_init (void) 
 { 
+  list_init(&waiting_list);
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
@@ -91,21 +93,30 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
+  if (ticks <= 0)
+    return;
   int64_t start = timer_ticks (); //what time it is right now
   ASSERT (intr_get_level () == INTR_ON); //if the inteupts are enabled
   struct waiting *info = (struct waiting *)malloc(sizeof(struct waiting));
   info->awake_time = start + ticks;
   sema_init(&info->sem, 0);
 
+  //printf("Sleeping up untill %"PRId64" ticks\n" , start + ticks);
+
   if (!list_empty(&waiting_list)) { 
+    //printf("List not empty: ");
     struct list_elem *e = list_begin(&waiting_list);
-    struct waiting curr = list_entry(e, struct waiting, elem);
-    while (curr.awake_time <= ticks) {
+    struct waiting *curr = list_entry(e, struct waiting, elem);
+    //printf("%"PRId64", ", curr->awake_time);
+    while (curr->awake_time <= info->awake_time) {
       e = list_next(e);
       if (e == list_tail(&waiting_list))
         break;
+      curr = list_entry(e, struct waiting, elem);
+      //printf("%"PRId64", ", curr->awake_time);
     }
-    list_insert(e, &info);
+    //printf("\n");
+    list_insert(e, &info->elem);
   } else
     list_push_back(&waiting_list, &info->elem);
 
@@ -191,8 +202,11 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+  //timer_print_stats();
   if (!list_empty(&waiting_list)) {
+    //printf("List is not empty\n");
     struct waiting *current = list_entry(list_pop_front(&waiting_list), struct waiting, elem);
+    //printf("List: %"PRId64"\n", current->awake_time);
     int push_back = 1;
     while (current->awake_time <= ticks) {
       sema_up(&current->sem);
