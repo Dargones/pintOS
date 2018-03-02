@@ -39,7 +39,7 @@ void
 timer_init (void) 
 { 
   awake_time = -1;
-  sem.sema_init(0);
+  sema_init(&sem, 0);
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
@@ -97,9 +97,13 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks (); //what time it is right now
   ASSERT (intr_get_level () == INTR_ON); //if the inteupts are enabled
 
-  if (awake_time == -1) 
+  if ((awake_time == -1)&&(awake_time > start + ticks))
     awake_time = start + ticks;
-  sem.sema_down();
+  sema_down(&sem);
+  while (timer_elapsed (start) < ticks) {
+    sema_up(&sem);
+    sema_down(&sem);
+  }
   //while (timer_elapsed (start) < ticks) //if ticks ticks passed since 
   // the function was executed first
     //thread_yield ();
@@ -181,7 +185,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   if ((awake_time != -1) && (ticks >= awake_time)) 
-    sem.sema_up();
+    sema_up(&sem);
   thread_tick ();
 }
 
