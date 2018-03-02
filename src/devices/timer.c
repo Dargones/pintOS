@@ -24,8 +24,7 @@ static int64_t ticks;
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
 
-static int awake_time;
-static struct semaphore sem;
+static struct list waiting_list;
 
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
@@ -96,14 +95,22 @@ timer_sleep (int64_t ticks)
 {
   int64_t start = timer_ticks (); //what time it is right now
   ASSERT (intr_get_level () == INTR_ON); //if the inteupts are enabled
-
-  if ((awake_time == -1)&&(awake_time > start + ticks))
-    awake_time = start + ticks;
-  sema_down(&sem);
-  while (timer_elapsed (start) < ticks) {
-    sema_up(&sem);
-    sema_down(&sem);
-  }
+  struct waiting *info = (struct wayting *)malloc(sizeof(struct waiting));
+  info->awake_time = start + ticks;
+  sema_init(&info->sem);
+  if (!list_empty(&waiting_list)) { 
+    struct waiting e = list_entry(list_begin(&waiting_list), struct waiting, elem);
+    while ((e.awake_time <= ticks)&&(list_next(e) == )) {
+      sema_up(&curent.sem);
+      if (list_empty(&waiting_list))
+        push_back = FALSE;
+        break;
+      current = list_entry(list_pop_front(&waiting_list), struct waiting, elem); 
+    }
+  } else
+    list_push_back(&waiting_list, &info->elem);
+  sema_down(&ifo->sem);
+  free(info);
   //while (timer_elapsed (start) < ticks) //if ticks ticks passed since 
   // the function was executed first
     //thread_yield ();
@@ -184,8 +191,19 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
-  if ((awake_time != -1) && (ticks >= awake_time)) 
-    sema_up(&sem);
+  if (!list_empty(&waiting_list)) {
+    struct waiting current = list_entry(list_pop_front(&waiting_list), struct waiting, elem);
+    bool push_back = TRUE;
+    while (current.awake_time <= ticks) {
+      sema_up(&curent.sem);
+      if (list_empty(&waiting_list))
+        push_back = FALSE;
+        break;
+      current = list_entry(list_pop_front(&waiting_list), struct waiting, elem); 
+    }
+    if (push_back) 
+      list_push_front(&waiting_list, &info->elem);
+  }
   thread_tick ();
 }
 
