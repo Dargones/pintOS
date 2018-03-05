@@ -97,31 +97,29 @@ timer_sleep (int64_t ticks)
     return;
   int64_t start = timer_ticks (); //what time it is right now
   ASSERT (intr_get_level () == INTR_ON); //if the inteupts are enabled
-  struct waiting *info = (struct waiting *)malloc(sizeof(struct waiting));
-  info->awake_time = start + ticks;
-  sema_init(&info->sem, 0);
+  struct thread *currThread = thread_current(); 
+  currThread->awake_time = start + ticks;
 
   //printf("Sleeping up untill %"PRId64" ticks\n" , start + ticks);
 
   if (!list_empty(&waiting_list)) { 
     //printf("List not empty: ");
     struct list_elem *e = list_begin(&waiting_list);
-    struct waiting *curr = list_entry(e, struct waiting, elem);
+    struct thread *next = list_entry(e, struct thread, awake_elem);
     //printf("%"PRId64", ", curr->awake_time);
-    while (curr->awake_time <= info->awake_time) {
+    while (next->awake_time <= currThread->awake_time) {
       e = list_next(e);
       if (e == list_tail(&waiting_list))
         break;
-      curr = list_entry(e, struct waiting, elem);
+      next = list_entry(e, struct thread, awake_elem);
       //printf("%"PRId64", ", curr->awake_time);
     }
     //printf("\n");
-    list_insert(e, &info->elem);
+    list_insert(e, &currThread->awake_elem);
   } else
-    list_push_back(&waiting_list, &info->elem);
+    list_push_back(&waiting_list, &currThread->awake_elem);
 
-  sema_down(&info->sem);
-  free(info);
+  sema_down(&currThread->awake_sem);
   //while (timer_elapsed (start) < ticks) //if ticks ticks passed since 
   // the function was executed first
     //thread_yield ();
@@ -205,19 +203,19 @@ timer_interrupt (struct intr_frame *args UNUSED)
   //timer_print_stats();
   if (!list_empty(&waiting_list)) {
     //printf("List is not empty\n");
-    struct waiting *current = list_entry(list_pop_front(&waiting_list), struct waiting, elem);
+    struct thread *next = list_entry(list_pop_front(&waiting_list), struct thread, awake_elem);
     //printf("List: %"PRId64"\n", current->awake_time);
-    int push_back = 1;
-    while (current->awake_time <= ticks) {
-      sema_up(&current->sem);
+    bool push_back = TRUE;
+    while (next->awake_time <= ticks) {
+      sema_up(&next->awake_sem);
       if (list_empty(&waiting_list)) {
-        push_back = 0;
+        push_back = FALSE;
         break;
       }
-      current = list_entry(list_pop_front(&waiting_list), struct waiting, elem); 
+      next = list_entry(list_pop_front(&waiting_list), struct thread, awake_elem); 
     }
     if (push_back) 
-      list_push_front(&waiting_list, &current->elem);
+      list_push_front(&waiting_list, &next->awake_elem);
   }
   thread_tick ();
 }
