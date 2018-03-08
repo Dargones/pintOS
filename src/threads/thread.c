@@ -493,15 +493,16 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
-  else
+  else {
     // return list_entry (list_pop_front (&ready_list), struct thread, elem);
-    struct list_elem *entry = list_max(&ready_list, priority_is_less, NULL);
-    return list_entry (list_remove (&entry), struct thread, elem);
+    struct list_elem *entry = list_max(&ready_list, &priority_is_less, NULL);
+    return list_entry (list_remove (entry), struct thread, elem);
+  }
 }
 
-bool priority_is_less(struct list_elem *fir, struct list_elem *sec) {
-  struct thread *first = list_entry (&fir, struct thread, elem);
-  struct thread *second = list_entry (&sec, struct thread, elem);
+bool priority_is_less(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
+  struct thread *first = list_entry (fir, struct thread, elem);
+  struct thread *second = list_entry (sec, struct thread, elem);
   return first->priority < second->priority;
 }
 
