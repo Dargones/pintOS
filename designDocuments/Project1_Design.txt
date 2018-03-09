@@ -1,0 +1,64 @@
+CMSC 326
+Design Document for Project #1: Alarms and Priority Scheduling with Priority Donation
+Due: 28.March.2018
+
+This plain text file should be called Project1_Design.txt and it should be completed and uploaded on Moodle.
+
+Your submission will receive 50% of its points based on how well it passes my tests.  The remaining 50% is divided between the design document and your code quality.  The latter includes commenting, clarity, consistency with the Pintos style, and efficiency (in that order).
+
+
+
+---- GROUP ----
+
+Forename Surname <xx1234@bard.edu}
+Forename Surname <xx1234@bard.edu}
+Forename Surname <xx1234@bard.edu}
+
+
+---- PRELIMINARIES ----
+
+If you have any preliminary comments on your submission, notes for the TAs, or extra credit, please give them here.
+
+Please cite any offline or online sources you consulted while preparing your submission, other than the Pintos documentation, course text, and notes provided by the instructor.
+
+
+
+---- DATA STRUCTURES ----
+
+Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration.  Identify the purpose of each in 25 words or less.  Precede each by its directory and file name.
+
+src/threads/synch.h (SAMPLE)
+A "latch" is a new synchronization primitive.  Acquires block until the first release.  Afterward, all ongoing and future acquires pass immediately.
+
+    /* Latch. */
+    struct latch 
+      {
+        bool released;              /* Released yet? */
+        struct lock monitor_lock;   /* Monitor lock. */
+        struct condition rel_cond;  /* Signaled when released. */
+      };
+
+---- ALGORITHMS ----
+
+How is priority scheduling implemented?  Refer critical data structures and the procedures where they are modified.
+
+Briefly describe your implementation of lock_acquire.
+
+Briefly describe your implementation of lock_release.
+
+How do you deal with multiple locks?
+
+How do you deal with nested locks?
+
+
+---- SYNCHRONIZATION ----
+
+How do you avoid race conditions within lock_acquire and lock_release?
+
+
+
+---- RATIONALE ----
+
+Critique your design, pointing out advantages and disadvantages in
+your design choices.
+

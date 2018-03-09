@@ -102,9 +102,10 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
 
-    int64_t awake_time;
-    struct semaphore awake_sem;
-    struct list_elem awake_elem;
+    /* Elements used for putting threads to sleep */
+    int64_t awake_time;                 /* The time (in ticks) to wake up */
+    struct semaphore awake_sem;         /* Unique semaphore to put thread to sleep */
+    struct list_elem awake_elem;        /* List element to put this thread in a list */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -142,6 +143,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+/*Define a function used for list_max() to order according to priority */
 list_less_func priority_is_less;
 
 #endif /* threads/thread.h */
