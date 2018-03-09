@@ -263,8 +263,6 @@ thread_current (void)
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
   ASSERT (is_thread (t));
-  printf("Status: %d\n", t->status == THREAD_RUNNING);
-  //fflush();
   ASSERT (t->status == THREAD_RUNNING);
 
   return t;
@@ -496,17 +494,16 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else {
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
-    //struct list_elem *entry = list_max(&ready_list, &priority_is_less, NULL);
-    //list_remove (entry);
-    //return list_entry (entry, struct thread, elem);
+    //return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    struct list_elem *entry = list_max(&ready_list, &priority_is_less, NULL);
+    list_remove(entry);
+    return list_entry (entry, struct thread, elem);
   }
 }
 
 bool priority_is_less(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
   struct thread *first = list_entry (fir, struct thread, elem);
   struct thread *second = list_entry (sec, struct thread, elem);
-  printf("Comparing %d %d\n", first->priority, second->priority);
   return first->priority < second->priority;
 }
 
