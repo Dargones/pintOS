@@ -10,33 +10,44 @@ Your submission will receive 50% of its points based on how well it passes my te
 
 ---- GROUP ----
 
-Forename Surname <xx1234@bard.edu}
-Forename Surname <xx1234@bard.edu}
-Forename Surname <xx1234@bard.edu}
-
+Sasha Fedchin <af9562@bard.edu>
+Karina Salem <ks5130@bard.edu>
+Darren Tirto <dt2925@bard.edu>
 
 ---- PRELIMINARIES ----
-
-If you have any preliminary comments on your submission, notes for the TAs, or extra credit, please give them here.
-
-Please cite any offline or online sources you consulted while preparing your submission, other than the Pintos documentation, course text, and notes provided by the instructor.
 
 
 
 ---- DATA STRUCTURES ----
 
-Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration.  Identify the purpose of each in 25 words or less.  Precede each by its directory and file name.
-
-src/threads/synch.h (SAMPLE)
-A "latch" is a new synchronization primitive.  Acquires block until the first release.  Afterward, all ongoing and future acquires pass immediately.
-
-    /* Latch. */
-    struct latch 
-      {
-        bool released;              /* Released yet? */
-        struct lock monitor_lock;   /* Monitor lock. */
-        struct condition rel_cond;  /* Signaled when released. */
-      };
+Location: src/threads/thread.h
+Three new elements were added to the thread structure specifically for the timer_sleep function to put . "awake_time" is the time in ticks that the thread should be woken up at. 
+@@ -4,6 +4,7 @@
+ #include <debug.h>
+ #include <list.h>
+ #include <stdint.h>
++#include "threads/synch.h"
+ 
+ /* States in a thread's life cycle. */
+ enum thread_status
+@@ -100,6 +101,11 @@
+ 
+     /* Owned by thread.c. */
+     unsigned magic;                     /* Detects stack overflow. */
++
++    /* Elements used for putting threads to sleep */
++    int64_t awake_time;                 /* The time (in ticks) to wake up */
++    struct semaphore awake_sem;         /* Unique semaphore to put thread to sleep */
++    struct list_elem awake_elem;        /* List element to put this thread in a list */
+   };
+ 
+ /* If false (default), use round-robin scheduler.
+@@ -138,4 +144,7 @@
+ int thread_get_recent_cpu (void);
+ int thread_get_load_avg (void);
+ 
++/*Define a function used for list_max() to order according to priority */
++list_less_func priority_is_less;
 
 ---- ALGORITHMS ----
 
