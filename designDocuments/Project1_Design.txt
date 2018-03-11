@@ -21,7 +21,7 @@ Darren Tirto <dt2925@bard.edu>
 ---- DATA STRUCTURES ----
 
 Location: src/threads/thread.h
-Three new elements were added to the thread structure specifically for the timer_sleep function to put . "awake_time" is the time in ticks that the thread should be woken up at. 
+Three new elements were added to the thread structure specifically for the timer_sleep function to put . "awake_time" so we could keep track of each threads time to wake up. "awake_sem" was so that we could sleep and wake specific threads and "awake_elem" was to store them in a list so that we could store sleeping threads. 
 @@ -4,6 +4,7 @@
  #include <debug.h>
  #include <list.h>
@@ -70,6 +70,5 @@ How do you avoid race conditions within lock_acquire and lock_release?
 
 ---- RATIONALE ----
 
-Critique your design, pointing out advantages and disadvantages in
-your design choices.
+ALARM: For this problem, we combined two different solutions we came up with. One used semaphore elements in their threads, but checked every thread each tick and wake up ones that need to be woken up (being very time inefficient). The other stored semaphores in a list cooresponding to each 
 
