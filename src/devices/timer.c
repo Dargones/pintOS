@@ -102,8 +102,8 @@ timer_sleep (int64_t ticks)
     return;
   int64_t start = timer_ticks (); //what time it is right now
   ASSERT (intr_get_level () == INTR_ON); //if the inteupts are enabled
-  struct thread *currThread = thread_current(); //grab the current running thread
-  currThread->awake_time = start + ticks; //calculate and store awake_time
+  struct thread *curr_thread = thread_current(); //grab the current running thread
+  curr_thread->awake_time = start + ticks; //calculate and store awake_time
 
   if (!list_empty(&waiting_list)) {//if list of sleeping semaphores not empty
     struct list_elem *e = list_begin(&waiting_list);//grab the head
@@ -112,18 +112,18 @@ timer_sleep (int64_t ticks)
     /*This loop runs through the list until it finds a thread with an awake time
     that is less than the current thread. It then puts in the current thread in
     its cooresponding awake time position*/
-    while (next->awake_time <= currThread->awake_time) {
+    while (next->awake_time <= curr_thread->awake_time) {
       e = list_next(e);//iterate our element
       if (e == list_tail(&waiting_list))//if we hit the end, break
         break;
       next = list_entry(e, struct thread, awake_elem);//entry into position
     }
-    list_insert(e, &currThread->awake_elem);
+    list_insert(e, &curr_thread->awake_elem);
   }else {//if the list of sleeping semaphores is empty, push it in
-    list_push_back(&waiting_list, &currThread->awake_elem);
+    list_push_back(&waiting_list, &curr_thread->awake_elem);
   }
 
-  sema_down(&currThread->awake_sem); //down on the cooresponding thread semaphore
+  sema_down(&curr_thread->awake_sem); //down on the cooresponding thread semaphore
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
