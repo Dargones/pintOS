@@ -89,7 +89,12 @@ timer_elapsed (int64_t then)
 }
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
-   be turned on. */
+   be turned on. 
+
+   Modified to avoid spinlock. Does this by putting current 
+   thread to sleep by sema downing on thread's awake_sem. also
+   adds the thread to a list of sleeping threads ordered by
+   the time they should be woken up.*/
 void
 timer_sleep (int64_t ticks) 
 {
@@ -97,32 +102,28 @@ timer_sleep (int64_t ticks)
     return;
   int64_t start = timer_ticks (); //what time it is right now
   ASSERT (intr_get_level () == INTR_ON); //if the inteupts are enabled
-  struct thread *currThread = thread_current(); 
-  currThread->awake_time = start + ticks;
+  struct thread *currThread = thread_current(); //grab the current running thread
+  currThread->awake_time = start + ticks; //calculate and store awake_time
 
-  //printf("Sleeping up untill %"PRId64" ticks\n" , start + ticks);
-
-  if (!list_empty(&waiting_list)) { 
-    //printf("List not empty: ");
-    struct list_elem *e = list_begin(&waiting_list);
-    struct thread *next = list_entry(e, struct thread, awake_elem);
-    //printf("%"PRId64", ", curr->awake_time);
+  if (!list_empty(&waiting_list)) {//if list of sleeping semaphores not empty
+    struct list_elem *e = list_begin(&waiting_list);//grab the head
+    struct thread *next = list_entry(e, struct thread, awake_elem);//get list entry
+    
+    /*This loop runs through the list until it finds a thread with an awake time
+    that is less than the current thread. It then puts in the current thread in
+    its cooresponding awake time position*/
     while (next->awake_time <= currThread->awake_time) {
-      e = list_next(e);
-      if (e == list_tail(&waiting_list))
+      e = list_next(e);//iterate our element
+      if (e == list_tail(&waiting_list))//if we hit the end, break
         break;
-      next = list_entry(e, struct thread, awake_elem);
-      //printf("%"PRId64", ", curr->awake_time);
+      next = list_entry(e, struct thread, awake_elem);//entry into position
     }
-    //printf("\n");
     list_insert(e, &currThread->awake_elem);
-  } else
+  }else {//if the list of sleeping semaphores is empty, push it in
     list_push_back(&waiting_list, &currThread->awake_elem);
+  }
 
-  sema_down(&currThread->awake_sem);
-  //while (timer_elapsed (start) < ticks) //if ticks ticks passed since 
-  // the function was executed first
-    //thread_yield ();
+  sema_down(&currThread->awake_sem); //down on the cooresponding thread semaphore
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -195,27 +196,32 @@ timer_print_stats (void)
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
 
-/* Timer interrupt handler. */
+/* Timer interrupt handler
+
+Added effect of waking up threads that need to be woken up. Does
+this by checking a list of sleeping threads (waiting_list) and 
+iterates through list popping threads that should be waken up
+and waking them up by doing up on the thread's awake_sem. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
-  //timer_print_stats();
-  if (!list_empty(&waiting_list)) {
-    //printf("List is not empty\n");
+  if (!list_empty(&waiting_list)) {//if the list of sleeping sems is not empty
+
+    /*pop the front element of the list, which is the soonest awake time*/
     struct thread *next = list_entry(list_pop_front(&waiting_list), struct thread, awake_elem);
-    //printf("List: %"PRId64"\n", current->awake_time);
-    bool push_back = TRUE;
-    while (next->awake_time <= ticks) {
-      sema_up(&next->awake_sem);
-      if (list_empty(&waiting_list)) {
-        push_back = FALSE;
+    bool push_back = TRUE;//flag to determine if we're putting the element back in
+    while (next->awake_time <= ticks) {//iterate through all threads that should wake
+      sema_up(&next->awake_sem);//AWAKE you thread
+      if (list_empty(&waiting_list)) {//if the list is empty
+        push_back = FALSE;//don't push back
         break;
       }
+      //pop next element. (new soonest awake time)
       next = list_entry(list_pop_front(&waiting_list), struct thread, awake_elem); 
     }
-    if (push_back) 
-      list_push_front(&waiting_list, &next->awake_elem);
+    if (push_back)//we never made it to the end of the list, so not time to wake up
+      list_push_front(&waiting_list, &next->awake_elem);//put the element in the list
   }
   thread_tick ();
 }
