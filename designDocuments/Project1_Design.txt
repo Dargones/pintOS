@@ -20,6 +20,7 @@ Darren Tirto <dt2925@bard.edu>
 
 ---- DATA STRUCTURES ----
 
+STUCTURE 1: Threads
 Location: src/threads/thread.h
 Three new elements were added to the thread structure specifically for the timer_sleep function to put . "awake_time" so we could keep track of each threads time to wake up. "awake_sem" was so that we could sleep and wake specific threads and "awake_elem" was to store them in a list so that we could store sleeping threads. 
 @@ -4,6 +4,7 @@
@@ -70,5 +71,13 @@ How do you avoid race conditions within lock_acquire and lock_release?
 
 ---- RATIONALE ----
 
-ALARM: For this problem, we combined two different solutions we came up with. One used semaphore elements in their threads, but checked every thread each tick and wake up ones that need to be woken up (being very time inefficient). The other stored semaphores in a list cooresponding to each 
+ALARM: For this problem, we combined two different solutions we came up with. One used semaphore elements in their threads, but checked every thread each tick and wake up ones that need to be woken up (being very time inefficient). The other created a semaphore that cooresponded to a thread that went to sleep and stored those semaphores in a list, waking them up at the calculated time (being very space inefficient or functionality limiting).
+
+Our solution instead used both by having a calculated time to wake up element as well as a semaphore element in the thread structure. Then by putting the the thread in a list ordered by time to wake up, we iterate from the front of the list until we get through all threads that need to be woken up at that tick time.
+
+By putting the semaphore in the thread struct, we manage to not have to constantly malloc and free new semaphores each time a thread goes to sleep. Furthermore, by using an ordered list, at every tick, we don't have to iterate through all running threads giving a time efficiency. A disadvantage to this design choice is that unlike both smaller solutions, we are allocating creating things that might never be used (such as the awake_semaphores given to threads that may never sleep as well as the list to store the sleeping threads). Under the assumptions that the sleep function will be widely used often and by many threads, these created things help the overall efficientcy.
+
+
+
+PRIORITY SCHEDULING
 
