@@ -1,0 +1,5 @@
+diff -urb "new file" "old file"
+
+git fetch --all
+git reset --hard origin/master
+git pull
