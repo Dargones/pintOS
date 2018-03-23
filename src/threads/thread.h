@@ -106,6 +106,13 @@ struct thread
     int64_t awake_time;                 /* The time (in ticks) to wake up */
     struct semaphore awake_sem;         /* Unique semaphore to put thread to sleep */
     struct list_elem awake_elem;        /* List element to put this thread in a list */
+
+    /* Lock for priority scheduling */
+    struct lock *scheduling_lock;
+
+    /* Create a list of donations this thread recieves */
+    struct list donation_list;
+    struct list_elem donation_list_elem;
   };
 
 /* If false (default), use round-robin scheduler.

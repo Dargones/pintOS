@@ -20,6 +20,9 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
+/* depth limit for donate_priority */
+#define DONATE_DEPTH_LIMIT 8
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -334,8 +337,23 @@ thread_foreach (thread_action_func *func, void *aux)
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
-{
-  thread_current ()->priority = new_priority;
+{ 
+  struct thread *curr_thread = thread_current();
+  if(!list_empty(&curr_thread->donation_list)){//if there are donations
+    printf("list isn't empty\n");
+    printf("list size: %d\n",list_size(&curr_thread->donation_list));
+    //pop the first element of the thread's donation list
+    struct list_elem *donation = list_begin(&curr_thread->donation_list);
+    //get the doner of the donation
+    struct thread *doner_thread = list_entry(donation, struct thread, donation_list_elem);
+    //set priority of current thread to donator's priority (can't set priority lower)
+    if (doner_thread->priority>curr_thread->priority){
+      curr_thread->priority = doner_thread->priority;
+    }
+  }else{
+    curr_thread->priority = new_priority;
+  }
+
 }
 
 /* Returns the current thread's priority. */
@@ -468,6 +486,8 @@ init_thread (struct thread *t, const char *name, int priority)
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
+
+  list_init(&t -> donation_list);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
