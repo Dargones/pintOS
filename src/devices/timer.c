@@ -107,7 +107,7 @@ timer_sleep (int64_t ticks)
 
   if (!list_empty(&waiting_list)) {//if list of sleeping semaphores not empty
     struct list_elem *e = list_begin(&waiting_list);//grab the head
-    struct thread *next = list_entry(e, struct thread, awake_elem);//get list entry
+    struct thread *next = list_entry(e, struct thread, awake_elem);//get thread owner
     
     /*This loop runs through the list until it finds a thread with an awake time
     that is less than the current thread. It then puts in the current thread in
