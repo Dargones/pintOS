@@ -196,7 +196,14 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  sema_down (&lock->semaphore);
+  success = sema_try_down (&lock->semaphore);
+  current = thread_current()->donation_list_elem;
+  if (!success) {
+    list_insert_ordered(&(lock->holder)->donation_list, &current, &priority_is_less, NULL);
+    update_actual_priority(lock->holder);
+    sema_down (&lock->semaphore);
+    list_remove(&current);
+  }
   lock->holder = thread_current ();
 }
 
