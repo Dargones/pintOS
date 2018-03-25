@@ -238,6 +238,12 @@ thread_unblock (struct thread *t)
 
   ASSERT (is_thread (t));
 
+  if (!list_empty(ready_list)) {
+    struct list_elem *entry = list_begin(ready_list);
+    struct thread *first = list_entry(list_elem, struct thread, elem);
+  }
+
+
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   list_push_back (&ready_list, &t->elem);
@@ -336,22 +342,22 @@ thread_foreach (thread_action_func *func, void *aux)
 
 
 int 
-update_actual_priority(struct *thread thread_to_update){
-  if(!list_empty(&curr_thread->donation_list)){
+update_actual_priority(struct thread *thread_to_update){
+  if(!list_empty(&thread_to_update->donation_list)){
     //look at the first element of the thread's donation list
-    struct list_elem *donation = list_begin(&thread_to_update->donation_list)
+    struct list_elem *donation = list_begin(&thread_to_update->donation_list);
     //get the doner of the donation
     struct thread *doner_thread = list_entry(donation, struct thread, donation_list_elem);
     //set priority of current thread to donator's priority (can't set priority lower)
-    if (doner_thread->priority>&thread_to_update->base_priority){
-      &thread_to_update->priority = doner_thread->priority;
+    if (doner_thread->priority > thread_to_update->base_priority){
+      thread_to_update->priority = doner_thread->priority;
     }else{
-      &thread_to_update->priority = &thread_to_update->base_priority;
+      thread_to_update->priority = thread_to_update->base_priority;
     }
   }else{
-    &thread_to_update->priority = &thread_to_update->base_priority;
+    thread_to_update->priority = thread_to_update->base_priority;
   }
-  return &thread_to_update->priority; 
+  return thread_to_update->priority; 
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
@@ -361,9 +367,8 @@ thread_set_priority (int new_priority)
   struct thread *curr_thread = thread_current();
   curr_thread->base_priority = new_priority;
   if(curr_thread->priority < update_actual_priority(curr_thread)){
-    thread_yield;
+    thread_yield();
   }
-
 }
 
 /* Returns the current thread's priority. */
@@ -489,15 +494,15 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  list_init(&t -> donation_list);
+  t->base_priority = priority;
+  update_actual_priority(t);
   t->magic = THREAD_MAGIC;
   sema_init(&t->awake_sem, 0);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
-
-  list_init(&t -> donation_list);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
