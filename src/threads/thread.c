@@ -346,7 +346,7 @@ thread_set_priority (int new_priority)
 { 
   struct thread *curr_thread = thread_current();
   curr_thread->base_priority = new_priority;
-  if(curr_thread->priority < update_actual_priority(cuur_thread)){
+  if(curr_thread->priority < update_actual_priority(curr_thread)){
     thread_yield;
   }
 
