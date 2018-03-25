@@ -31,4 +31,6 @@ void timer_ndelay (int64_t nanoseconds);
 
 void timer_print_stats (void);
 
+list_less_func compare_times;
+
 #endif /* devices/timer.h */
