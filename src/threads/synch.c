@@ -196,14 +196,21 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  /*bool success = sema_try_down (&lock->semaphore);
+  bool success = sema_try_down (&lock->semaphore);
   if (!success) {
-    struct list_elem current = thread_current()->donation_list_elem;
-    list_insert_ordered(&(lock->holder)->donation_list, &current, &priority_is_less, NULL);
+    //printf("doner: %d\n", thread_current()->priority);
+    struct list_elem *current = &thread_current()->donation_list_elem;
+    list_insert_ordered(&(lock->holder)->donation_list, current, &priority_is_more, NULL);
     update_actual_priority(lock->holder);
-    list_remove(&current);
-  }*/
-  sema_down (&lock->semaphore);
+    thread_current() -> scheduling_lock = lock;
+    sema_down (&lock->semaphore);
+    while (thread_current() != lock->holder) {
+      sema_up(&lock->semaphore);
+      sema_down(&lock->semaphore);
+    }
+    //list_remove(current);
+    //update_actual_priority(lock->holder);
+  } 
   lock->holder = thread_current ();
 }
 
@@ -240,6 +247,31 @@ lock_release (struct lock *lock)
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
+  if (!list_empty(&thread_current()->donation_list)) {
+    struct thread *next_thread = NULL;
+    struct list_elem *e = list_begin(&thread_current()->donation_list);
+    struct list_elem *e2;
+    while (e!= list_end(&thread_current()->donation_list)) {
+      struct thread *dt = list_entry(e, struct thread, donation_list_elem);
+      if (dt->scheduling_lock == lock) {
+        if (next_thread == NULL) {
+          next_thread = dt;
+          //printf("next_p: %d\n", dt->priority);
+          e = list_remove(e);
+          continue;
+        } else {
+          e2 = list_remove(e);
+          list_insert_ordered(&next_thread->donation_list, e, &priority_is_more, NULL);
+          e = e2;
+          continue;
+        }
+      }
+      e = list_next(e);
+    }
+    if (next_thread != NULL)
+      lock->holder = next_thread;
+  }
+  thread_set_priority(thread_current()->base_priority);
 }
 
 /* Returns true if the current thread holds LOCK, false
