@@ -334,24 +334,20 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+
+void
+update_actual_priority(struct *thread thread_to_change){
+
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 { 
   struct thread *curr_thread = thread_current();
-  if(!list_empty(&curr_thread->donation_list)){//if there are donations
-    printf("list isn't empty\n");
-    printf("list size: %d\n",list_size(&curr_thread->donation_list));
-    //pop the first element of the thread's donation list
-    struct list_elem *donation = list_begin(&curr_thread->donation_list);
-    //get the doner of the donation
-    struct thread *doner_thread = list_entry(donation, struct thread, donation_list_elem);
-    //set priority of current thread to donator's priority (can't set priority lower)
-    if (doner_thread->priority>curr_thread->priority){
-      curr_thread->priority = doner_thread->priority;
-    }
-  }else{
-    curr_thread->priority = new_priority;
+  curr_thread->base_priority = new_priority;
+  if(curr_thread->priority < update_actual_priority(cuur_thread)){
+    thread_yield;
   }
 
 }
