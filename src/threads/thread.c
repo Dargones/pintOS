@@ -339,7 +339,7 @@ thread_foreach (thread_action_func *func, void *aux)
 int 
 update_actual_priority(struct thread *thread_to_update){
 
-  if(!list_empty(&thread_to_update->donation_list)){
+  if(!list_empty(&thread_to_update->donation_list)) {
     int i = 0;
     struct list_elem *e;
     for (e = list_begin(&thread_to_update->donation_list); e!= list_end(&thread_to_update->donation_list); e = list_next(e)) {
@@ -361,6 +361,10 @@ update_actual_priority(struct thread *thread_to_update){
   }else{
     thread_to_update->priority = thread_to_update->base_priority;
   }
+  if ((thread_to_update->scheduling_lock != NULL) && 
+    (thread_to_update->scheduling_lock->holder != NULL) &&
+    (thread_to_update->scheduling_lock->holder != thread_to_update))
+    update_actual_priority(thread_to_update->scheduling_lock->holder);
   return thread_to_update->priority; 
 }
 
@@ -555,6 +559,13 @@ bool priority_is_less(const struct list_elem *fir, const struct list_elem *sec, 
 bool priority_is_more(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
   struct thread *first = list_entry (fir, struct thread, donation_list_elem);
   struct thread *second = list_entry (sec, struct thread, donation_list_elem);
+  //printf("compare: %d %d\n", first->priority , second->priority);
+  return first->priority > second->priority;
+}
+
+bool priority_is_more2(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
+  struct thread *first = list_entry (fir, struct thread, elem);
+  struct thread *second = list_entry (sec, struct thread, elem);
   //printf("compare: %d %d\n", first->priority , second->priority);
   return first->priority > second->priority;
 }
