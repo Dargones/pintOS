@@ -121,7 +121,7 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
-    list_sort(&sema->waiters, priority_is_more2, NULL);
+    list_sort(&sema->waiters, priority_is_more, 2);
     if ((list_entry (list_begin(&sema->waiters),
             struct thread, elem))->priority > thread_current()->base_priority)
       must_yield = true;
@@ -214,7 +214,7 @@ lock_acquire (struct lock *lock)
   if (!success) {
     //printf("doner: %d\n", thread_current()->priority);
     struct list_elem *current = &thread_current()->donation_list_elem;
-    list_insert_ordered(&(lock->holder)->donation_list, current, &priority_is_more, NULL);
+    list_insert_ordered(&(lock->holder)->donation_list, current, &priority_is_more, 1);
     update_actual_priority(lock->holder);
     thread_current() -> scheduling_lock = lock;
     sema_down (&lock->semaphore);
@@ -275,7 +275,7 @@ lock_release (struct lock *lock)
           continue;
         } else {
           e2 = list_remove(e);
-          list_insert_ordered(&next_thread->donation_list, e, &priority_is_more, NULL);
+          list_insert_ordered(&next_thread->donation_list, e, &priority_is_more, 1);
           e = e2;
           continue;
         }
@@ -299,13 +299,7 @@ lock_held_by_current_thread (const struct lock *lock)
   return lock->holder == thread_current ();
 }
 
-/* One semaphore in a list. */
-struct semaphore_elem 
-  {
-    struct list_elem elem;              /* List element. */
-    struct semaphore semaphore;         /* This semaphore. */
-    struct thread *thread_waiting;
-  };
+
 
 /* Initializes condition variable COND.  A condition variable
    allows one piece of code to signal a condition and cooperating
@@ -379,7 +373,7 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   bool must_yield = false;
 
   if (!list_empty (&cond->waiters)) {
-    list_sort(&cond->waiters, priority_is_more3, NULL);
+    list_sort(&cond->waiters, priority_is_more, 3);
     //if ((list_entry (list_begin(&cond->waiters),
             //struct thread, elem))->priority > thread_current()->base_priority)
       //must_yield = true;
@@ -393,13 +387,6 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
 
   //if (must_yield)
     //thread_yield();
-}
-
-bool priority_is_more3(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
-  struct thread *first = list_entry (fir, struct semaphore_elem, elem)->thread_waiting;
-  struct thread *second = list_entry (sec, struct semaphore_elem, elem)->thread_waiting;
-  //printf("compare: %d %d\n", first->priority , second->priority);
-  return first->priority > second->priority;
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by

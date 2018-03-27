@@ -155,7 +155,6 @@ int thread_get_load_avg (void);
 /*Define a function used for list_max() to order according to priority */
 list_less_func priority_is_less;
 list_less_func priority_is_more;
-list_less_func priority_is_more2;
 
 int update_actual_priority(struct thread *thread_to_update);
 
