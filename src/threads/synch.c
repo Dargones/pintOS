@@ -121,7 +121,7 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
-    list_sort(&sema->waiters, priority_is_more2, NULL);
+    list_sort(&sema->waiters, sort_by_min_elem, NULL);
     if ((list_entry (list_begin(&sema->waiters),
             struct thread, elem))->priority > thread_current()->base_priority)
       must_yield = true;
@@ -214,14 +214,10 @@ lock_acquire (struct lock *lock)
   if (!success) {
     //printf("doner: %d\n", thread_current()->priority);
     struct list_elem *current = &thread_current()->donation_list_elem;
-    list_insert_ordered(&(lock->holder)->donation_list, current, &priority_is_more, NULL);
+    list_insert_ordered(&(lock->holder)->donation_list, current, &sort_donation_elem, NULL);
     update_actual_priority(lock->holder);
     thread_current() -> scheduling_lock = lock;
     sema_down (&lock->semaphore);
-    while (thread_current() != lock->holder) {
-      sema_up(&lock->semaphore);
-      sema_down(&lock->semaphore);
-    }
     //list_remove(current);
     //update_actual_priority(lock->holder);
   } 
@@ -260,7 +256,6 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
-  sema_up (&lock->semaphore);
   if (!list_empty(&thread_current()->donation_list)) {
     struct thread *next_thread = NULL;
     struct list_elem *e = list_begin(&thread_current()->donation_list);
@@ -275,7 +270,7 @@ lock_release (struct lock *lock)
           continue;
         } else {
           e2 = list_remove(e);
-          list_insert_ordered(&next_thread->donation_list, e, &priority_is_more, NULL);
+          list_insert_ordered(&next_thread->donation_list, e, &sort_by_min_elem, NULL);
           e = e2;
           continue;
         }
@@ -285,7 +280,8 @@ lock_release (struct lock *lock)
     if (next_thread != NULL)
       lock->holder = next_thread;
   }
-  thread_set_priority(thread_current()->base_priority);
+  update_actual_priority(thread_current());
+  sema_up(&lock->semaphore);
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -398,7 +394,6 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
 bool priority_is_more3(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
   struct thread *first = list_entry (fir, struct semaphore_elem, elem)->thread_waiting;
   struct thread *second = list_entry (sec, struct semaphore_elem, elem)->thread_waiting;
-  //printf("compare: %d %d\n", first->priority , second->priority);
   return first->priority > second->priority;
 }
 
