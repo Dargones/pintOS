@@ -343,8 +343,9 @@ thread_foreach (thread_action_func *func, void *aux)
 int 
 update_actual_priority(struct thread *thread_to_update){
   /*if we have incoming donations*/
+  int old_priority = thread_to_update->priority; /* used to se if priority 
+  changed */
   if(!list_empty(&thread_to_update->donation_list)) {
-    struct list_elem *e;
     /*look at the first element of the thread's donation list (max priority)*/
     struct list_elem *donation = list_begin(&thread_to_update->donation_list);
     /*get the doner of the donation*/
@@ -364,11 +365,18 @@ update_actual_priority(struct thread *thread_to_update){
 
   /*if the thread is trying to acquire a lock, the lock is held by someone
   and we're not the one holding the lock.*/
-  if ((thread_to_update->scheduling_lock != NULL) && 
+  if ((old_priority != thread_to_update -> priority) &&
+    (thread_to_update->scheduling_lock != NULL) && 
     (thread_to_update->scheduling_lock->holder != NULL) &&
-    (thread_to_update->scheduling_lock->holder != thread_to_update))
+    (thread_to_update->scheduling_lock->holder != thread_to_update)) {
     /*update the holder of the lock the current thread is trying to get*/
+    struct list *new_don_list = 
+       &thread_to_update->scheduling_lock->holder-> donation_list;
+    list_remove(&thread_to_update->donation_list_elem);
+    list_insert_ordered(new_don_list, &thread_to_update->donation_list_elem, 
+      sort_donation_elem, NULL);
     update_actual_priority(thread_to_update->scheduling_lock->holder);
+  }
   return thread_to_update->priority; 
 }
 
