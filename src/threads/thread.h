@@ -109,11 +109,9 @@ struct thread
     struct list_elem awake_elem;        /* List element to put this thread in a list */
 
     /* Lock that thread attempts to hold or holds */
-    struct lock *scheduling_lock;       /* Used to determine who is trying to aquire */
+    struct lock *want_lock;      /* Used to determine who is trying to aquire the lock*/
 
-    /* Create a list of donations this thread recieves */
-    struct list donation_list;
-    struct list_elem donation_list_elem;
+    struct list lock_list;
   };
 
 /* If false (default), use round-robin scheduler.

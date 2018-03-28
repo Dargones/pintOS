@@ -68,10 +68,8 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-      list_push_back (&sema->waiters, &thread_current ()->elem);
-      /* because the priority of each element in the waiting list can be 
-      changed at some point, it makes little sense to insert new elements 
-      in the correct order (this order can easily be disrupted)*/
+      list_insert_ordered (&sema->waiters, 
+        &thread_current ()->elem, &sort_by_min_elem, NULL);
       thread_block ();
     }
   sema->value--;
@@ -119,8 +117,6 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
-    list_sort(&sema->waiters, sort_by_min_elem, NULL);
-    /* sorting the list to release the thread that has the highest priority */
     if ((list_entry (list_begin(&sema->waiters),
             struct thread, elem))->priority > thread_current()->base_priority)
       must_yield = true;
@@ -210,18 +206,23 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  if (lock_try_acquire(lock))
+  if (lock_try_acquire(lock)) 
     return;
 
-  struct list_elem *current = &thread_current()->donation_list_elem;
-  list_insert_ordered(&(lock->holder)->donation_list, 
-    current, &sort_donation_elem, NULL);
-  /* put the current thread on the donation list of the lock holder */
-  update_actual_priority(lock->holder); /* update the lock holder's priority */
-  thread_current() -> scheduling_lock = lock; /* specify that this thread 
-  waits on this semaphore */
-  sema_down (&lock->semaphore); 
-  lock->holder = thread_current();
+  thread_current()->want_lock = lock;
+
+  struct thread *holder = lock -> holder;
+  if (holder -> priority < thread_current() -> priority)
+    int old_priority = holder -> priority;
+    holder -> priority = thread_current() -> priority;
+    if ((holder -> want_lock != NULL)&&(holder -> priority != old_priority)) {
+      update_thread_priority(&holder -> want_lock, &holder -> elem);
+  }
+
+  sema_down (&lock->semaphore);
+  thread_current()->want_lock = NULL;
+  list_push_front(&thread_current()->lock_list, &lock->elem);
+  lock->holder = thread_current ();
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -255,38 +256,13 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  holder = lock -> holder;
+  list_remove(holder-> lock_list, &lock -> elem);
   lock->holder = NULL;
-  if (!list_empty(&thread_current()->donation_list)) {
-    /* If there are multiple threads waiting on the lock being released, 
-    the thread that has the highest priority among these should be given
-    the rest as the list of donors (these donors will only affect the 
-    priority of the thread if the thread lowers its base priority voluntary.*/
-    struct thread *next_thread = NULL; /* next thread that will get the lock */
-    struct list_elem *e = list_begin(&thread_current()->donation_list);
-    struct list_elem *tmp;
-    while (e!= list_end(&thread_current()->donation_list)) {
-      struct thread *dt = list_entry(e, struct thread, donation_list_elem);
-      if (dt->scheduling_lock == lock) {
-        if (next_thread == NULL) {
-          next_thread = dt; /* dt is the thread that will get the lock. */
-          e = list_remove(e);
-          continue;
-        } else {
-          tmp = list_remove(e);
-          list_insert_ordered(&next_thread->donation_list, e, 
-            &sort_by_min_elem, NULL);
-          /* e is removed from the donation_list of the thread that is releasing
-          the lock and transferred to the donation list of the thread that
-          will get the lock next*/
-          e = tmp;
-          continue;
-        }
-      }
-      e = list_next(e);
-    }
-  }
-  update_actual_priority(thread_current());
-  /* update the priority of the thread that just released the lock */
+  /* if the priority of this lock defined the priority of its holder */
+  if (lock -> priority == holder -> priority)
+    update_thread_priority(thread_current());
+  
   sema_up(&lock->semaphore);
 }
 
