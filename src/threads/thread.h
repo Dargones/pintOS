@@ -153,8 +153,8 @@ int thread_get_load_avg (void);
 /*Define a function used for list ordering according to priority */
 list_less_func sort_by_max_elem; /*criteria to return max priority ordering*/
 list_less_func sort_by_min_elem; /*criteria to return min priority ordering*/
-list_less_func sort_donation_elem; /*donation elems by max priority ordering*/
 
-int update_actual_priority(struct thread *thread_to_update);
+int update_thread_priority(struct thread *to_update);
+void update_lock_priority(struct lock *to_update, struct list_elem *changed);
 
 #endif /* threads/thread.h */

@@ -206,19 +206,16 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  if (lock_try_acquire(lock)) 
-    return;
-
-  thread_current()->want_lock = lock;
-
-  struct thread *holder = lock -> holder;
-  if (holder -> priority < thread_current() -> priority)
-    int old_priority = holder -> priority;
-    holder -> priority = thread_current() -> priority;
-    if ((holder -> want_lock != NULL)&&(holder -> priority != old_priority)) {
-      update_thread_priority(&holder -> want_lock, &holder -> elem);
+  if (lock -> holder != NULL) {
+    thread_current()->want_lock = lock;
+    struct thread *holder = lock -> holder;
+    if (holder -> priority < thread_current() -> priority) {
+      int old_priority = holder -> priority;
+      holder -> priority = thread_current() -> priority;
+      if ((holder -> want_lock != NULL)&&(holder -> priority != old_priority)) 
+        update_lock_priority(holder -> want_lock, &holder -> elem);
+    }
   }
-
   sema_down (&lock->semaphore);
   thread_current()->want_lock = NULL;
   list_push_front(&thread_current()->lock_list, &lock->elem);
@@ -256,8 +253,8 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  holder = lock -> holder;
-  list_remove(holder-> lock_list, &lock -> elem);
+  struct thread *holder = lock -> holder;
+  list_remove(&lock -> elem);
   lock->holder = NULL;
   /* if the priority of this lock defined the priority of its holder */
   if (lock -> priority == holder -> priority)

@@ -341,40 +341,39 @@ update_thread_priority(struct thread *to_update){
   struct list_elem *e;
   int old_priority = to_update->priority;
 
-  to_update -> priority = base_priority;
+  to_update -> priority = to_update -> base_priority;
   /* iterating through all the locks to find the one with maximum priority
   (priority of the lock equals the maximum of the priorities of the threads)
   that wait on the lock)*/
   for (e = list_begin(&to_update -> lock_list); 
-    e = list_end(&to_update -> lock_list);
+    e != list_end(&to_update -> lock_list);
     e = list_next(e)) {
     struct lock *lock = list_entry(e, struct lock, elem);
-    if (lock -> priority > max_found_priority)
+    if (lock -> priority > to_update -> priority)
       to_update -> priority = lock -> priority;
   }
   /* if this thread's priority was changed and it waits on some lock, 
   update the priority of that lock */
   if ((to_update -> want_lock != NULL) && 
-    (to_update -> priority != old_priority)) {
-    update_lock_priority(&to_update -> want_lock, &to_update -> elem);
-  }
+    (to_update -> priority != old_priority))
+    update_lock_priority(to_update -> want_lock, &to_update -> elem);
+
   return to_update -> priority;
 }
 
 void
-update_lock_priority(struct lock *to_update, struct list_elem changed) {
-  struct list *list_to_modify = &to_update -> semaphore -> waiters;
-  old_priority = to_update -> priority;
+update_lock_priority(struct lock *to_update, struct list_elem *changed) {
+  struct list *list_to_modify = &(to_update -> semaphore.waiters);
+  int old_priority = to_update -> priority;
 
-  list_remove(list_to_modify , changed);  
+  list_remove(changed);  
   list_insert_ordered(list_to_modify, changed, sort_by_min_elem, NULL);
-  to_update -> priority = list_enty(list_begin(&list_to_modify), 
-                                        struct thread, elem) -> priority;
+  to_update -> priority = list_entry(list_begin(list_to_modify), struct thread, elem) -> priority;
   /* if the priority of th lock was changed and it might affect the priority 
   the lock holder, update the priorrity of teh lock_holder */
-  if ((to_update -> priority > to_update -> want_lock -> holder -> priority) ||
-    (old_priority == to_update -> want_lock -> holder -> priority))
-    update_actual_priority(to_update -> holder);
+  if ((to_update -> priority > to_update -> holder -> priority) ||
+    (old_priority == to_update -> holder -> priority))
+    update_thread_priority(to_update -> holder);
 }
 
 
@@ -389,8 +388,8 @@ thread_set_priority (int new_priority)
   /* the first to conditions check whether the actual priority of the thread 
   should be updated. The last consition updates the actual priority and
   checks whether the thread should yield because of this update*/
-  if (((new_priority > thread_current -> priority) || 
-    (thread_current -> priority = old_priority)) &&
+  if (((new_priority > thread_current() -> priority) || 
+    (thread_current() -> priority = old_priority)) &&
     (thread_current()->priority > update_thread_priority(thread_current())))
     thread_yield();
 }
