@@ -338,32 +338,41 @@ thread_foreach (thread_action_func *func, void *aux)
 
 int 
 update_actual_priority(struct thread *thread_to_update){
-
+  /*if we have incoming donations*/
   if(!list_empty(&thread_to_update->donation_list)) {
     int i = 0;
     struct list_elem *e;
-    for (e = list_begin(&thread_to_update->donation_list); e!= list_end(&thread_to_update->donation_list); e = list_next(e)) {
+    /*loop through our donation list*/
+    for (e = list_begin(&thread_to_update->donation_list); 
+         e!= list_end(&thread_to_update->donation_list); 
+         e = list_next(e)) {
+      /*grab the thread that is donating the donation*/
       struct thread *dt = list_entry(e, struct thread, donation_list_elem);
       i += 1;
-      //printf("doner%d: %d", i, dt->priority);
     }
     //look at the first element of the thread's donation list
     struct list_elem *donation = list_begin(&thread_to_update->donation_list);
     //get the doner of the donation
-    struct thread *doner_thread = list_entry(donation, struct thread, donation_list_elem);
-    //set priority of current thread to donator's priority (can't set priority lower)
-    //printf("doner: %d, base: %d\n", doner_thread->priority, thread_to_update->priority);
-    if (doner_thread->priority > thread_to_update->base_priority){
+    struct thread *doner_thread = list_entry(donation, 
+                                             struct thread, 
+                                             donation_list_elem);
+    /*set priority of current thread to donator's priority (only if higher)*/
+    /*if donation priority is higher than base priority*/
+    if (doner_thread->priority > thread_to_update->base_priority)
       thread_to_update->priority = doner_thread->priority;
-    }else{
+    else /*if base priority is higher than donation priority*/
       thread_to_update->priority = thread_to_update->base_priority;
-    }
-  }else{
-    thread_to_update->priority = thread_to_update->base_priority;
   }
+  else /*if we don't have incoming donations*/
+    /*set our priority to base priority*/
+    thread_to_update->priority = thread_to_update->base_priority;
+
+  /*if the thread is trying to acquire a lock, the lock is held by someone
+  and we're not the one holding the lock.*/
   if ((thread_to_update->scheduling_lock != NULL) && 
     (thread_to_update->scheduling_lock->holder != NULL) &&
     (thread_to_update->scheduling_lock->holder != thread_to_update))
+    /*update the holder of the lock the current thread is trying to get*/
     update_actual_priority(thread_to_update->scheduling_lock->holder);
   return thread_to_update->priority; 
 }
@@ -372,16 +381,11 @@ update_actual_priority(struct thread *thread_to_update){
 void
 thread_set_priority (int new_priority) 
 { 
-  struct thread *curr_thread = thread_current();
-  curr_thread->base_priority = new_priority;
-  if(curr_thread->priority > update_actual_priority(curr_thread))
+  /*set the base priority to the parameter*/
+  thread_current()->base_priority = new_priority;
+  /*if thread's current priority goes down after updating, yield*/
+  if(thread_current()->priority > update_actual_priority(thread_current()))
     thread_yield();
-  /*bool flag = false;
-  if (thread_current() -> priority > new_priority)
-    flag = true;
-  thread_current() -> priority = new_priority;
-  if (flag)
-    thread_yield();*/
 }
 
 /* Returns the current thread's priority. */
@@ -508,11 +512,11 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   list_init(&t -> donation_list);
-  t->base_priority = priority;
-  t->priority = priority;
+  t->base_priority = priority;/*initialize base_priority*/
+  t->priority = priority;/*initialize priority*/
   t->magic = THREAD_MAGIC;
-  t->scheduling_lock = NULL;
-  sema_init(&t->awake_sem, 0);
+  t->scheduling_lock = NULL;/*currently not trying any lock*/
+  sema_init(&t->awake_sem, 0);/*initialize our awake semaphore*/
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -540,31 +544,47 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-  if (list_empty (&ready_list))
-    return idle_thread;
+  if (list_empty (&ready_list)) /*if no threads want to run*/
+    return idle_thread; /*run the idle thread*/
   else {
-    //return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    /*grab element with maximum priority*/
     struct list_elem *entry = list_max(&ready_list, &sort_by_max_elem, NULL);
+    /*take it out of the lists of ready threads*/
     list_remove(entry);
     return list_entry (entry, struct thread, elem);
   }
 }
 
-bool sort_by_max_elem(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
+/* Functions used as sorting criteria for linked list in pintos
+   they compare adjacent elements and return boolean values,
+   determined by how they should be ordered*/
+
+bool sort_by_max_elem(const struct list_elem *fir, 
+                      const struct list_elem *sec, 
+                      void *aux) {
+  /*grab adajecent elements*/
   struct thread *first = list_entry (fir, struct thread, elem);
   struct thread *second = list_entry (sec, struct thread, elem);
+  /*true if the first element has lower priority*/
   return first->priority < second->priority;
 }
 
-bool sort_by_min_elem(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
+bool sort_by_min_elem(const struct list_elem *fir, 
+                      const struct list_elem *sec, 
+                      void *aux) {
+  /*grab adajecent elements*/
   struct thread *first = list_entry (fir, struct thread, elem);
   struct thread *second = list_entry (sec, struct thread, elem);
+  /*true if the first element has higher priority*/
   return first->priority > second->priority;
 }
 
-bool sort_donation_elem(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
+bool sort_donation_elem(const struct list_elem *fir, 
+                        const struct list_elem *sec, 
+                        void *aux) {
   struct thread *first = list_entry (fir, struct thread, donation_list_elem);
   struct thread *second = list_entry (sec, struct thread, donation_list_elem);
+  /*true if the first element has higher priority*/
   return first->priority > second->priority;
 }
 
