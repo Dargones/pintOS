@@ -335,7 +335,12 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-
+/* Recalculate the actual priority of a given thread. If this thread is
+waiting on a lock, recalculte the priority of the lock. (The priority of
+a lock is the maximum of the priorities of the threads waiting on this
+lock). update_thread_priority and update_lock_priority might call each 
+other and form recursion.
+*/
 int 
 update_thread_priority(struct thread *to_update){
   struct list_elem *e;
@@ -343,7 +348,7 @@ update_thread_priority(struct thread *to_update){
 
   to_update -> priority = to_update -> base_priority;
   /* iterating through all the locks to find the one with maximum priority
-  (priority of the lock equals the maximum of the priorities of the threads)
+  (priority of the lock equals the maximum of the priorities of the threads
   that wait on the lock)*/
   for (e = list_begin(&to_update -> lock_list); 
     e != list_end(&to_update -> lock_list);
@@ -361,23 +366,30 @@ update_thread_priority(struct thread *to_update){
   return to_update -> priority;
 }
 
+/* Recalculate the priority of a given lock after some thread waiting on the 
+lock changed its priority. (The priority of a lock is the maximum of the
+priorities of the threads waiting on this lock). update_thread_priority 
+and update_lock_priority might call each other and form recursion.
+*/
 void
 update_lock_priority(struct lock *to_update, struct list_elem *changed) {
   struct list *list_to_modify = &(to_update -> semaphore.waiters);
   int old_priority = to_update -> priority;
 
+  /* remove the element, whose priority was changed and insert it back again
+  in the correct position */
   list_remove(changed);  
   list_insert_ordered(list_to_modify, changed, sort_by_min_elem, NULL);
   to_update -> priority = list_entry(list_begin(list_to_modify), struct thread, elem) -> priority;
-  /* if the priority of th lock was changed and it might affect the priority 
-  the lock holder, update the priorrity of teh lock_holder */
+  /* if the priority of the lock was changed and it might affect the priority 
+  the lock holder, update the priorrity of the lock_holder */
   if ((to_update -> priority > to_update -> holder -> priority) ||
     (old_priority == to_update -> holder -> priority))
     update_thread_priority(to_update -> holder);
 }
 
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
+/* Sets the current thread's base priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 { 
@@ -385,9 +397,9 @@ thread_set_priority (int new_priority)
   int old_priority = thread_current()->base_priority;
   /*set the base priority to the parameter*/
   thread_current()->base_priority = new_priority;
-  /* the first to conditions check whether the actual priority of the thread 
-  should be updated. The last consition updates the actual priority and
-  checks whether the thread should yield because of this update*/
+  /* the first two conditions check whether the actual priority of the thread 
+  should be updated. The last condition updates the actual priority and
+  checks whether the thread should yield because of this update */
   if (((new_priority > thread_current() -> priority) || 
     (thread_current() -> priority = old_priority)) &&
     (thread_current()->priority > update_thread_priority(thread_current())))
@@ -553,35 +565,35 @@ next_thread_to_run (void)
   if (list_empty (&ready_list)) /*if no threads want to run*/
     return idle_thread; /*run the idle thread*/
   else {
-    /*grab element with maximum priority*/
+    /* grab element with maximum priority */
     struct list_elem *entry = list_max(&ready_list, &sort_by_max_elem, NULL);
-    /*take it out of the lists of ready threads*/
+    /* take it out of the lists of ready threads */
     list_remove(entry);
     return list_entry (entry, struct thread, elem);
   }
 }
 
-/* Functions used as sorting criteria for linked list in pintos
-   they compare adjacent elements and return boolean values,
+/* Functions used as sorting criteria for linked list in pintos.
+   They compare adjacent elements and return boolean values,
    determined by how they should be ordered*/
 
 bool sort_by_max_elem(const struct list_elem *fir, 
                       const struct list_elem *sec, 
                       void *aux) {
-  /*grab adajecent elements*/
+  /* grab adajecent elements */
   struct thread *first = list_entry (fir, struct thread, elem);
   struct thread *second = list_entry (sec, struct thread, elem);
-  /*true if the first element has lower priority*/
+  /* true if the first element has lower priority */
   return first->priority < second->priority;
 }
 
 bool sort_by_min_elem(const struct list_elem *fir, 
                       const struct list_elem *sec, 
                       void *aux) {
-  /*grab adajecent elements*/
+  /* grab adajecent elements */
   struct thread *first = list_entry (fir, struct thread, elem);
   struct thread *second = list_entry (sec, struct thread, elem);
-  /*true if the first element has higher priority*/
+  /* true if the first element has higher priority */
   return first->priority > second->priority;
 }
 
