@@ -2,12 +2,6 @@ CMSC 326
 Design Document for Project #1: Alarms and Priority Scheduling with Priority Donation
 Due: 28.March.2018
 
-This plain text file should be called Project1_Design.txt and it should be completed and uploaded on Moodle.
-
-Your submission will receive 50% of its points based on how well it passes my tests.  The remaining 50% is divided between the design document and your code quality.  The latter includes commenting, clarity, consistency with the Pintos style, and efficiency (in that order).
-
-
-
 ---- GROUP ----
 
 Sasha Fedchin <af9562@bard.edu>
@@ -54,9 +48,7 @@ Three new elements were added to the thread structure specifically for the timer
 
 How is priority scheduling implemented?  Refer critical data structures and the procedures where they are modified.
 	
-	We implement it through using list_max on the ready list; that returns the maximum value in the list. We use list_max in next_thread_to_run function, in which we pass sort_by_max_elem function as a parameter, and in that way the scheduling algorithm picks the max priority value. 
- 	
- 	We used the doubly linked list data structure.
+	In next_thread_to_run, we search the ready_list for the highest-priority thread and allow this thread to run next. We created sort_by_max_elem function, which is  a helper function used together with the built-in list_max procedure.	
 
  	The thread_set_priority changes the base priority of the thread itself, which is the default priority that the thread sets after a donation.
  	To recalculate the actual priority we use the update_actual_priority function. 
@@ -64,13 +56,16 @@ How is priority scheduling implemented?  Refer critical data structures and the 
 
 Briefly describe your implementation of lock_acquire.
 	
-	In lock_acquire, we implement a donation list for the lock_holder, into which we put the current_thread that tries to acquire the lock. Through using the update_actual_priority function we donate priority to the lock_holder. And then give the lock to the current_thread waiting on the lock after the lock_holder releases the lock, and thus, making the current_thread the lock_holder. 
+	In lock_acquire, we first make a call to lock_try_acquire. Lock_try_acquire  returns false, if the lock is already held by some thread. In this latter case, we insert the current thread into the donation list of the thread that currently holds the lock (making sure that the donation list is kept sorted). We then update the priority of the holder of the lock by making a call to update_thread_priority described below.
 
 Briefly describe your implementation of lock_release.
 
 How do you deal with multiple locks?
+	
 
 How do you deal with nested locks?
+
+	We created update_thread_priority - a recursive function that updates the priority of a given thread and, if necessary, the priority of the thread on which the given thread has to wait. This function also ensures that every donation_list is kept sorted by threads' priorities. Update_thread_priority is called within thread_acquire, which modifies the donation_list and set_priority, which modifies the base priority of a thread.
 
 
 ---- SYNCHRONIZATION ----
