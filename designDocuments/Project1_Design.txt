@@ -79,5 +79,10 @@ By putting the semaphore in the thread struct, we manage to not have to constant
 
 
 
-PRIORITY SCHEDULING
+PRIORITY DONATION: For this problem, we gave each thread a list that holds the incoming donations. When it is called to update through the function "update_actual_priority". When a thread hits a lock, all it does is adds to the list of the thread it wants to donate to and tells the thread to update its priority. This solution manages to discriminate between a thread's actual priority and its "base" priority, which is the priority that it returns to after being a donee.
+
+Notice then that we need to deal with relaying donations. Suppose we have an ordering of priority of A>B>C If thread A and thread B are both waiting on lock 1 which thread C currently owns, when thread C releases the lock, A obtains the lock and B must be donating to A (in case A tries to lower its base priority 
+
+Another option we could have used was to keep a list of locks that a thread holds. This would have given a more direct solution as we could have just 
+
 
