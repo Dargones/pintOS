@@ -10,13 +10,15 @@ Darren Tirto <dt2925@bard.edu>
 
 ---- PRELIMINARIES ----
 
-
+N/A
 
 ---- DATA STRUCTURES ----
 
 STUCTURE 1: Threads
 Location: src/threads/thread.h
+For the alarm assignment we added 3 things: (1)An integer storing the tick at which the thread should wake up, (2)A semaphore that uniquely puts this thread to sleep (3) a list_elem to put this thread on a list to keep track of sleeping threads.
 
+For the priority donation assignement we added 3 other things: (1)An integer storing a base priority (read next section), (2)A lock to that the thread is waiting on (3)as well as a list of locks that this thread has currently aquired
 @@ -87,7 +88,11 @@
      enum thread_status status;          /* Thread state. */
      char name[16];                      /* Name (for debugging purposes). */
