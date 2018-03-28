@@ -4,7 +4,6 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
-#include "threads/synch.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -558,24 +557,17 @@ bool priority_is_less(const struct list_elem *fir, const struct list_elem *sec, 
 }
 
 bool priority_is_more(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
-  int option = *(int *)aux;
-  if (option == 1){
-    struct thread *first = list_entry (fir, struct thread, donation_list_elem);
-    struct thread *second = list_entry (sec, struct thread, donation_list_elem);
-    //printf("compare: %d %d\n", first->priority , second->priority);
-    return first->priority > second->priority;}
-  else if (option == 2){
-    struct thread *first = list_entry (fir, struct thread, elem);
-    struct thread *second = list_entry (sec, struct thread, elem);
-    //printf("compare: %d %d\n", first->priority , second->priority);
-    return first->priority > second->priority;
-  }
-  else if (option == 3){
-    struct thread *first = list_entry (fir, struct semaphore_elem, elem)->thread_waiting;
-    struct thread *second = list_entry (sec, struct semaphore_elem, elem)->thread_waiting;
-    //printf("compare: %d %d\n", first->priority , second->priority);
-    return first->priority > second->priority;
-  }
+  struct thread *first = list_entry (fir, struct thread, donation_list_elem);
+  struct thread *second = list_entry (sec, struct thread, donation_list_elem);
+  //printf("compare: %d %d\n", first->priority , second->priority);
+  return first->priority > second->priority;
+}
+
+bool priority_is_more2(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
+  struct thread *first = list_entry (fir, struct thread, elem);
+  struct thread *second = list_entry (sec, struct thread, elem);
+  //printf("compare: %d %d\n", first->priority , second->priority);
+  return first->priority > second->priority;
 }
 
 /* Completes a thread switch by activating the new thread's page
