@@ -210,8 +210,8 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  if (lock_try_acquire)
-    return
+  if (lock_try_acquire(lock))
+    return;
 
   struct list_elem *current = &thread_current()->donation_list_elem;
   list_insert_ordered(&(lock->holder)->donation_list, 
@@ -255,6 +255,7 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  lock->holder = NULL;
   if (!list_empty(&thread_current()->donation_list)) {
     /* If there are multiple threads waiting on the lock being released, 
     the thread that has the highest priority among these should be given
