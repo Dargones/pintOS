@@ -89,7 +89,7 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    int base_priority;
+    int base_priority;                  /* Priority thread reverts to after donation*/
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -108,8 +108,8 @@ struct thread
     struct semaphore awake_sem;         /* Unique semaphore to put thread to sleep */
     struct list_elem awake_elem;        /* List element to put this thread in a list */
 
-    /* Lock for priority scheduling */
-    struct lock *scheduling_lock;
+    /* Lock that thread attempts to hold or holds */
+    struct lock *scheduling_lock;       /* Used to determine who is trying to aquire */
 
     /* Create a list of donations this thread recieves */
     struct list donation_list;
@@ -152,10 +152,10 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-/*Define a function used for list_max() to order according to priority */
-list_less_func priority_is_less;
-list_less_func priority_is_more;
-list_less_func priority_is_more2;
+/*Define a function used for list ordering according to priority */
+list_less_func sort_by_max_elem; /*criteria to return max priority ordering*/
+list_less_func sort_by_min_elem; /*criteria to return min priority ordering*/
+list_less_func sort_donation_elem; /*donation elems by max priority ordering*/
 
 int update_actual_priority(struct thread *thread_to_update);
 

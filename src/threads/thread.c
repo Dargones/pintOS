@@ -544,29 +544,27 @@ next_thread_to_run (void)
     return idle_thread;
   else {
     //return list_entry (list_pop_front (&ready_list), struct thread, elem);
-    struct list_elem *entry = list_max(&ready_list, &priority_is_less, NULL);
+    struct list_elem *entry = list_max(&ready_list, &sort_by_max_elem, NULL);
     list_remove(entry);
     return list_entry (entry, struct thread, elem);
   }
 }
 
-bool priority_is_less(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
+bool sort_by_max_elem(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
   struct thread *first = list_entry (fir, struct thread, elem);
   struct thread *second = list_entry (sec, struct thread, elem);
   return first->priority < second->priority;
 }
 
-bool priority_is_more(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
-  struct thread *first = list_entry (fir, struct thread, donation_list_elem);
-  struct thread *second = list_entry (sec, struct thread, donation_list_elem);
-  //printf("compare: %d %d\n", first->priority , second->priority);
+bool sort_by_min_elem(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
+  struct thread *first = list_entry (fir, struct thread, elem);
+  struct thread *second = list_entry (sec, struct thread, elem);
   return first->priority > second->priority;
 }
 
-bool priority_is_more2(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
-  struct thread *first = list_entry (fir, struct thread, elem);
-  struct thread *second = list_entry (sec, struct thread, elem);
-  //printf("compare: %d %d\n", first->priority , second->priority);
+bool sort_donation_elem(const struct list_elem *fir, const struct list_elem *sec, void *aux) {
+  struct thread *first = list_entry (fir, struct thread, donation_list_elem);
+  struct thread *second = list_entry (sec, struct thread, donation_list_elem);
   return first->priority > second->priority;
 }
 
