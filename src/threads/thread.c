@@ -336,23 +336,18 @@ thread_foreach (thread_action_func *func, void *aux)
 }
 
 
+/* Looks at the lists of donations of the passed thread and 
+   changes own priority to the greatest donation if it is higher
+   than its own base priority. Also recursively calls update on
+   the holder of the lock it tries to aquire*/
 int 
 update_actual_priority(struct thread *thread_to_update){
   /*if we have incoming donations*/
   if(!list_empty(&thread_to_update->donation_list)) {
-    int i = 0;
     struct list_elem *e;
-    /*loop through our donation list*/
-    for (e = list_begin(&thread_to_update->donation_list); 
-         e!= list_end(&thread_to_update->donation_list); 
-         e = list_next(e)) {
-      /*grab the thread that is donating the donation*/
-      struct thread *dt = list_entry(e, struct thread, donation_list_elem);
-      i += 1;
-    }
-    //look at the first element of the thread's donation list
+    /*look at the first element of the thread's donation list (max priority)*/
     struct list_elem *donation = list_begin(&thread_to_update->donation_list);
-    //get the doner of the donation
+    /*get the doner of the donation*/
     struct thread *doner_thread = list_entry(donation, 
                                              struct thread, 
                                              donation_list_elem);
