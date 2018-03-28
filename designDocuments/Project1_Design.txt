@@ -16,16 +16,21 @@ Darren Tirto <dt2925@bard.edu>
 
 STUCTURE 1: Threads
 Location: src/threads/thread.h
-Three new elements were added to the thread structure specifically for the timer_sleep function to put . "awake_time" so we could keep track of each threads time to wake up. "awake_sem" was so that we could sleep and wake specific threads and "awake_elem" was to store them in a list so that we could store sleeping threads. 
-@@ -4,6 +4,7 @@
- #include <debug.h>
- #include <list.h>
- #include <stdint.h>
-+#include "threads/synch.h"
+
+@@ -87,7 +88,11 @@
+     enum thread_status status;          /* Thread state. */
+     char name[16];                      /* Name (for debugging purposes). */
+     uint8_t *stack;                     /* Saved stack pointer. */
+-    int priority;                       /* Priority. */
++    int priority;                       /* Actual priority. It may change when
++    somebody donates priority to the thread*/
++    int base_priority;                  /* The base priority that can only be
++    changed when the thread is initialized, or if the thread calls
++    set_priority()*/
+     struct list_elem allelem;           /* List element for all threads list. */
  
- /* States in a thread's life cycle. */
- enum thread_status
-@@ -100,6 +101,11 @@
+     /* Shared between thread.c and synch.c. */
+@@ -100,6 +105,16 @@
  
      /* Owned by thread.c. */
      unsigned magic;                     /* Detects stack overflow. */
@@ -34,15 +39,22 @@ Three new elements were added to the thread structure specifically for the timer
 +    int64_t awake_time;                 /* The time (in ticks) to wake up */
 +    struct semaphore awake_sem;         /* Unique semaphore to put thread to sleep */
 +    struct list_elem awake_elem;        /* List element to put this thread in a list */
++
++    /* Lock that thread attempts to hold or holds */
++    struct lock *want_lock;  /* The lock on which the thread currently waits */
++
++    struct list lock_list; /* The list of locks this thread acquired */
    };
- 
- /* If false (default), use round-robin scheduler.
-@@ -138,4 +144,7 @@
- int thread_get_recent_cpu (void);
- int thread_get_load_avg (void);
- 
-+/*Define a function used for list_max() to order according to priority */
-+list_less_func priority_is_less;
+
+STRUCTURE 2: Semaphore elem
+Location: src/threads/synch.c
+@@ -251,6 +305,7 @@
+struct semaphore_elem 
+   {
+     struct list_elem elem;              /* List element. */
+     struct semaphore semaphore;         /* This semaphore. */
++    struct thread *thread_waiting;    /* Thread that waits on the semaphore. */
+   };
 
 ---- ALGORITHMS ----
 
