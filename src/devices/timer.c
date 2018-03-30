@@ -25,7 +25,9 @@ static int64_t ticks;
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
 
-static struct list waiting_list;
+static struct list waiting_list; /* the list of sleeping threads */
+static struct semaphore mutex; /* semaphore used to guarantee
+//mutual exclusin for dealing with the waiting_list */
 
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
@@ -39,6 +41,7 @@ void
 timer_init (void) 
 { 
   list_init(&waiting_list);
+  sema_init(&mutex, 1);
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
@@ -104,7 +107,9 @@ timer_sleep (int64_t ticks)
   ASSERT (intr_get_level () == INTR_ON); /*if the interrupts are enabled*/
   struct thread *curr_thread = thread_current(); /*grab the current running thread*/
   curr_thread->awake_time = start + ticks; /*calculate and store awake_time*/
+  sema_down(&mutex);
   list_insert_ordered(&waiting_list, &curr_thread->awake_elem, &compare_times, NULL);
+  sema_up(&mutex);
   sema_down(&curr_thread->awake_sem); /*down on the cooresponding thread semaphore*/
 }
 
