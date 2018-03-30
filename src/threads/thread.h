@@ -159,7 +159,9 @@ list_less_func sort_by_min_elem; /*criteria to return min priority ordering*/
 
 /* Functions for updating thread and lock priorities (Priority of a lock is the
  maximum of the priorities of the threads waiting on this lock) */
-int update_thread_priority(struct thread *to_update);
-void update_lock_priority(struct lock *to_update, struct list_elem *changed);
+void update_thread_priority(struct thread *to_update);
+
+int update_single_thread_priority(struct thread *to_update);
+int update_single_lock_priority(struct lock *to_update, struct list_elem *changed);
 
 #endif /* threads/thread.h */

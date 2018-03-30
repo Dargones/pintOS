@@ -218,14 +218,8 @@ lock_acquire (struct lock *lock)
     if (lock -> priority < thread_current() -> priority) {
       /* update the "priority" of the lock */
       lock -> priority = thread_current() -> priority;
-      if (holder -> priority < thread_current() -> priority) {
-        /* update the priority of the lock holder */
-        int old_priority = holder -> priority;
-        holder -> priority = thread_current() -> priority;
-        if ((holder -> want_lock != NULL)&&(holder -> priority != old_priority)) 
-          update_lock_priority(holder -> want_lock, &holder -> elem);
-          /* the line above initialize a series of recursive calls */
-      }
+      if (holder -> priority < thread_current() -> priority)
+        update_thread_priority(holder);
     }
   }
   sema_down (&lock->semaphore);
