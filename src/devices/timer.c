@@ -196,7 +196,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   if (!list_empty(&waiting_list)) {/*if the list of sleeping sems is not empty
 
-    /*pop the front element of the list, which is the soonest awake time*/
+    pop the front element of the list, which is the soonest awake time*/
     struct thread *next = list_entry(list_pop_front(&waiting_list), struct thread, awake_elem);
     bool push_back = TRUE;/*flag to determine if we're putting the element back in*/
     while (next->awake_time <= ticks) {/*iterate through all threads that should wake*/

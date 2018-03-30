@@ -212,7 +212,6 @@ lock_acquire (struct lock *lock)
 
   enum intr_level old_level;
   old_level = intr_disable ();
-  
   if (lock -> holder != NULL) {
     /* If needed, update the priority of the lock, the priority of the lock 
     holder, priority of the lock on which the holder waits etc. */
@@ -232,6 +231,7 @@ lock_acquire (struct lock *lock)
   sema_down (&lock->semaphore);
   thread_current()->want_lock = NULL;
   /* Push the lock onto the list of locks that the current thread acquired */
+  old_level = intr_disable ();
   list_push_front(&thread_current()->lock_list, &lock->elem);
   /* Update the priority of this lock (which is just the priority of the 
   thread that will be given the lock next, since it has the highest priority)*/
@@ -242,6 +242,7 @@ lock_acquire (struct lock *lock)
       thread_current() -> priority = lock -> priority;
   }
   lock->holder = thread_current ();
+  intr_set_level (old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
