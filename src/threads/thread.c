@@ -372,7 +372,7 @@ update_single_lock_priority(struct lock *to_update, struct list_elem *changed) {
 void
 update_thread_priority(struct thread *to_update) {
   int old_priority = to_update -> priority;
-  while ((update_single_thread_priority(to_update) != old_priority) &&\
+  while ((update_single_thread_priority(to_update) != old_priority) &&
     (to_update -> want_lock != NULL)) {
       old_priority = to_update -> want_lock -> priority;
       int new_priority = update_single_lock_priority(to_update -> want_lock, &to_update -> elem);
@@ -400,8 +400,8 @@ thread_set_priority (int new_priority)
   int old_priority = thread_current()->priority;
   update_thread_priority(thread_current());
 
-  if (((new_priority > thread_current() -> priority) || 
-    (thread_current() -> priority = old_base_priority)) &&
+  if (((new_priority > old_priority) || 
+    (old_priority == old_base_priority)) &&
     (old_priority > thread_current()->priority))
     thread_yield();
 }
