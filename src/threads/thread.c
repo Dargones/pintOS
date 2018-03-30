@@ -335,7 +335,9 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-/* Recalculate the actual priority of a given thread. */
+/* Recalculate the actual priority of the thread TO_UPDATE. 
+This function must not be called from anywhere except from the
+update_thread_priority procedure*/
 int 
 update_single_thread_priority(struct thread *to_update) {
   struct list_elem *e;
@@ -354,10 +356,12 @@ update_single_thread_priority(struct thread *to_update) {
   return to_update -> priority;
 }
 
-/* Recalculate the priority of a given lock after some thread waiting on the 
-lock changed its priority. (The priority of a lock is the maximum of the
-priorities of the threads waiting on this lock). 
-*/
+/* Recalculate the priority of the lock TO_UPDATE after some thread waiting 
+on the lock (whose elem field is CHANGED) changed its priority. 
+(The priority of a lock is the maximum 
+of the priorities of the threads waiting on this lock).
+This function must not be called from anywhere except from the
+update_thread_priority procedure. */
 int
 update_single_lock_priority(struct lock *to_update, struct list_elem *changed) {
   struct list *list_to_modify = &(to_update -> semaphore.waiters);
@@ -365,20 +369,32 @@ update_single_lock_priority(struct lock *to_update, struct list_elem *changed) {
   in the correct position */
   list_remove(changed);  
   list_insert_ordered(list_to_modify, changed, sort_by_min_elem, NULL);
+  /* noe that the ist is sorted, the first element has the highest priority */
   to_update -> priority = list_entry(list_begin(list_to_modify), struct thread, elem) -> priority;
   return to_update->priority;
 }
 
+/* Recalculate the priority of the thread TO_UPDATE reevaluate all other
+priorities that TO_UPDATE affects. Using this fuction makes it possible to
+deal with nested locks. */
 void
 update_thread_priority(struct thread *to_update) {
   int old_priority = to_update -> priority;
+  /* At this point old_priority refers to the old priority of the thread.
+  The condition inside the while loop recalculates the priority of the thread
+  and, if the priority changed and the thread waits on some lock, the program
+  enter the while loop to reevaluate the priority of the lock */
   while ((update_single_thread_priority(to_update) != old_priority) &&
     (to_update -> want_lock != NULL)) {
       old_priority = to_update -> want_lock -> priority;
       int new_priority = update_single_lock_priority(to_update -> want_lock, &to_update -> elem);
-
+      /* at this point old_priority and new_priority refer to new and old
+      priorities of the lock */
       if ((new_priority > to_update -> want_lock -> holder -> priority) ||
         (old_priority == to_update -> want_lock -> holder -> priority)) {
+          /* old_priority and to_update are upate to be used in the next 
+          iteration of the while loop, if the change in lock's priority leads
+          to change in thread's piority. */
           to_update = to_update -> want_lock -> holder;
           old_priority = to_update -> priority;
       } else 
@@ -390,19 +406,14 @@ update_thread_priority(struct thread *to_update) {
 void
 thread_set_priority (int new_priority) 
 { 
-  /* remember the old base priority */
-  int old_base_priority = thread_current()->base_priority;
-  /*set the base priority to the parameter*/
-  thread_current()->base_priority = new_priority;
-  /* the first two conditions check whether the actual priority of the thread 
-  should be updated. The last condition updates the actual priority and
-  checks whether the thread should yield because of this update */
+  /* remember the old actual priority */
   int old_priority = thread_current()->priority;
+  /* set the base priority to the parameter*/
+  thread_current()->base_priority = new_priority;
+  /* update the actual priority */
   update_thread_priority(thread_current());
-
-  if (((new_priority > old_priority) || 
-    (old_priority == old_base_priority)) &&
-    (old_priority > thread_current()->priority))
+  /* check if the thread should yield*/
+  if (old_priority > thread_current() -> priority)
     thread_yield();
 }
 

@@ -214,12 +214,13 @@ lock_acquire (struct lock *lock)
     /* If needed, update the priority of the lock, the priority of the lock 
     holder, priority of the lock on which the holder waits etc. */
     thread_current()->want_lock = lock;
-    struct thread *holder = lock -> holder;
     if (lock -> priority < thread_current() -> priority) {
-      /* update the "priority" of the lock */
+      /* update the priority of the lock */
       lock -> priority = thread_current() -> priority;
-      if (holder -> priority < thread_current() -> priority)
-        update_thread_priority(holder);
+      if (lock -> holder -> priority < thread_current() -> priority)
+        /* this is a call o a while loop that updates all pioities in due
+        order and accounts or neste locks */
+        update_thread_priority(lock -> holder);
     }
   }
   sema_down (&lock->semaphore);
