@@ -211,7 +211,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!lock_held_by_current_thread (lock));
 
   if (lock -> holder != NULL) {
-    /* If needed, Uupdate the priority of the lock, the priority of the lock 
+    /* If needed, update the priority of the lock, the priority of the lock 
     holder, priority of the lock on which the holder waits etc. */
     thread_current()->want_lock = lock;
     struct thread *holder = lock -> holder;
@@ -283,7 +283,7 @@ lock_release (struct lock *lock)
   
   lock -> holder = NULL;
 
-  /* If no thread wait on the lock, cahnge the lock's priority to -1 */
+  /* If no thread wait on the lock, change the lock's priority to -1 */
   if (list_empty(&lock -> semaphore.waiters))
     lock -> priority = -1;
   sema_up(&lock->semaphore);
