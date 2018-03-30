@@ -1,6 +1,6 @@
 CMSC 326
 Design Document for Project #1: Alarms and Priority Scheduling with Priority Donation
-Due: 28.March.2018
+Due: 30.March.2018
 
 ---- GROUP ----
 
@@ -8,102 +8,94 @@ Sasha Fedchin <af9562@bard.edu>
 Karina Salem <ks5130@bard.edu>
 Darren Tirto <dt2925@bard.edu>
 
----- PRELIMINARIES ----
+---- GITHUB_REPOSITORY ----
+https://github.com/Dargones/pintOS/tree/master
 
+
+---- PRELIMINARIES ----
 N/A
 
 ---- DATA STRUCTURES ----
-
-STUCTURE 1: Threads
+STRUCTURE 1: threads
 Location: src/threads/thread.h
-For the alarm assignment we added 3 things: (1)An integer storing the tick at which the thread should wake up, (2)A semaphore that uniquely puts this thread to sleep (3) a list_elem to put this thread on a list to keep track of sleeping threads.
+We added three fields to the thread structure for the timer_sleep to work and three other fields for the priority donation assignment. 
 
-For the priority donation assignement we added 3 other things: (1)An integer storing a base priority (read next section), (2)A lock to that the thread is waiting on (3)as well as a list of locks that this thread has currently aquired
-@@ -87,7 +88,11 @@
      enum thread_status status;          /* Thread state. */
      char name[16];                      /* Name (for debugging purposes). */
      uint8_t *stack;                     /* Saved stack pointer. */
 -    int priority;                       /* Priority. */
 +    int priority;                       /* Actual priority. It may change when
-+    somebody donates priority to the thread*/
++                                           somebody donates priority to the thread */
 +    int base_priority;                  /* The base priority that can only be
-+    changed when the thread is initialized, or if the thread calls
-+    set_priority()*/
++                                           changed when the thread is initialized, 
+                                            or if the thread calls set_priority() */
      struct list_elem allelem;           /* List element for all threads list. */
- 
-     /* Shared between thread.c and synch.c. */
-@@ -100,6 +105,16 @@
- 
-     /* Owned by thread.c. */
+
      unsigned magic;                     /* Detects stack overflow. */
 +
 +    /* Elements used for putting threads to sleep */
-+    int64_t awake_time;                 /* The time (in ticks) to wake up */
++    int64_t awake_time;                 /* The time (in ticks) at which the clock interrupt
+                                            should awake the thread  */
 +    struct semaphore awake_sem;         /* Unique semaphore to put thread to sleep */
 +    struct list_elem awake_elem;        /* List element to put this thread in a list */
 +
-+    /* Lock that thread attempts to hold or holds */
-+    struct lock *want_lock;  /* The lock on which the thread currently waits */
++    struct lock *want_lock;             /* The lock on which the thread currently waits */
 +
-+    struct list lock_list; /* The list of locks this thread acquired */
++    struct list lock_list;              /* The list of locks this thread acquired */
    };
 
-STRUCTURE 2: Semaphore elem
+STRUCTURE 2: semaphore_elem
 Location: src/threads/synch.c
-@@ -251,6 +305,7 @@
-struct semaphore_elem 
+This structure is used by condition variables and the new field is necessary for sorting the elements by priority.
    {
-     struct list_elem elem;              /* List element. */
-     struct semaphore semaphore;         /* This semaphore. */
-+    struct thread *thread_waiting;    /* Thread that waits on the semaphore. */
+     struct list_elem elem;             /* List element. */
+     struct semaphore semaphore;        /* This semaphore. */
++    struct thread *thread_waiting;     /* Thread that waits on the semaphore. */
    };
+
+STRUCTURE 3: lock
+Location: src/threads/synch.h
+We added the new priority field. The priority of the lock depends on the priorities of the threads that wait on it (it is the maximum among them).      {
+-    struct thread *holder;          /* Thread holding the lock (for debugging). */
++    struct thread *holder;          /* Thread holding the lock. */
+         struct semaphore semaphore; /* Binary semaphore controlling access. */
++    int priority;                   /* The highest priority among the threads
++                                       waiting on this lock */
++    struct list_elem elem;          /* Supports lock_list in struct thread*/
+     };
+
 
 ---- ALGORITHMS ----
+PRIORITY SCHEDULING
+    In next_thread_to_run, we search the ready_list for the highest-priority thread and allow this thread to run next. We created the sort_by_max_elem function, which is a helper function used together with the built-in list_max procedure.    
+     The thread_set_priority changes the base priority of the thread itself, which is the default priority that thread has if there are no donations.
+     To recalculate the actual priority we use update_thread_priority (described in “dealing with nested locks” section). 
+     
+IMPLEMENTATION OF lock_acquire:
+    If a thread tries to acquire a lock owned by another thread, it compares its priority with the lock’s priority (read added field above in structs) and increases the lock’s priority if needed. Afterward, it makes a call to update_thread_priority that updates the priority of the lock’s holder and any other priorities if needed. This is to make sure donations cause all threads to be timely updated to account for any changes in the middle of chain locks.
 
-How is priority scheduling implemented?  Refer critical data structures and the procedures where they are modified.
-	
-	In next_thread_to_run, we search the ready_list for the highest-priority thread and allow this thread to run next. We created sort_by_max_elem function, which is  a helper function used together with the built-in list_max procedure.	
+When the current thread eventually acquires the lock, it pushes the lock onto its own lock list and sets the priority of the lock to that of the thread that will be given the lock next so that the code works for the next time a different thread tries to acquire this lock.
 
- 	The thread_set_priority changes the base priority of the thread itself, which is the default priority that the thread sets after a donation.
- 	To recalculate the actual priority we use the update_actual_priority function. 
- 	
+IMPLEMENTATION OF lock_release:
+    Once a thread releases a lock, it c updates the priority of the holder, if needed. If there are no threads waiting on the lock, it sets the priority of the lock to -1, (the minimum) so that the lock’s priority will be set to the priority of the first thread that will try to acquire it.
 
-Briefly describe your implementation of lock_acquire.
-	
-	In lock_acquire, we first make a call to lock_try_acquire. Lock_try_acquire  returns false, if the lock is already held by some thread. In this latter case, we insert the current thread into the donation list of the thread that currently holds the lock (making sure that the donation list is kept sorted). We then update the priority of the holder of the lock by making a call to update_thread_priority described below.
-
-Briefly describe your implementation of lock_release.
-
-How do you deal with multiple locks?
-	
-
-How do you deal with nested locks?
-
-	We created update_thread_priority - a recursive function that updates the priority of a given thread and, if necessary, the priority of the thread on which the given thread has to wait. This function also ensures that every donation_list is kept sorted by threads' priorities. Update_thread_priority is called within thread_acquire, which modifies the donation_list and set_priority, which modifies the base priority of a thread.
+DEALING WITH MULTIPLE LOCKS
+Each thread has a list of locks that it acquired, and each lock has its priority (which is the maximum among the priorities of the threads that wait on the lock). Hence, in lock_release function, a thread should simply remove the lock from the list and recalculate its own new priority.
+    
+DEALING WITH NESTED LOCKS
+We created update_single_thread_priority and update_single_lock_priority - two functions that update corresponding priorities. We initially made them recursive so that a call to one of them would update all of the priorities that needed to be updated. However, to avoid the possibility of stack overflow, we decided to make a new function, update_thread_priority, that implements a while loop that reevaluates all the necessary priorities, in case they are nested.
+It takes more code to use a while loop instead of recursion, but, since we don’t use recursion, we don’t have to account for the depth limit of nested locks.
 
 
 ---- SYNCHRONIZATION ----
-
-How do you avoid race conditions within lock_acquire and lock_release?
-
-
+We disable interrupts for most of the code in lock acquire and lock_release, because it updates the information about the locks (which can be accessed by any thread waiting on it). We could have instead added a second semaphore to the thread structure that would guarantee mutual exclusion. However, this would require twice as much memory to be allocated for each lock. We could not use a global semaphore or another synchronization mechanism in synch.c itself, because synch.c has no corresponding init function, where such semaphore could have been initialized.
 
 ---- RATIONALE ----
+PRIORITY DONATION: In order for priority donation to be implemented, each thread has to have access to all of its donors. This way, when the lock is released, the priorities of the thread that released the lock and the thread that got it can be reevaluated. One solution that we initially implemented was to have a list of donors for every thread. The solution that we decided to switch to was to have the list of acquired locks for every thread. The latter approach has a number of important benefits:
+    1) It costs less memory to have a list of locks than to have a list of donors because the overall number of locks should (in most situations) be less than the number of threads. Moreover, each lock already has a list of threads that are waiting on it (accessed as lock.semaphore.waiters). 
+    2) When a thread A releases a lock, and there are multiple threads waiting on this lock, thread B will be chosen to have the lock after A. The rest of the threads waiting on the lock should cease donating their priority to A and start donating their priority to B. If the information about donations is stored as the list of locks, this is an O(1) operation (the pointer to the lock should just be removed from one list and transferred to another one). Had we used a list of donors, it would be an O(n) operation, where n is the number of threads waiting on the thread that released the lock. 
 
-ALARM: For this problem, we combined two different solutions we came up with. One used semaphore elements in their threads, but checked every thread each tick and wake up ones that need to be woken up (being very time inefficient). The other created a semaphore that cooresponded to a thread that went to sleep and stored those semaphores in a list, waking them up at the calculated time (being very space inefficient or functionality limiting).
-
-Our solution instead used both by having a calculated time to wake up element as well as a semaphore element in the thread structure. Then by putting the the thread in a list ordered by time to wake up, we iterate from the front of the list until we get through all threads that need to be woken up at that tick time.
-
-By putting the semaphore in the thread struct, we manage to not have to constantly malloc and free new semaphores each time a thread goes to sleep. Furthermore, by using an ordered list, at every tick, we don't have to iterate through all running threads giving a time efficiency. A disadvantage to this design choice is that unlike both smaller solutions, we are allocating creating things that might never be used (such as the awake_semaphores given to threads that may never sleep as well as the list to store the sleeping threads). Under the assumptions that the sleep function will be widely used often and by many threads, these created things help the overall efficientcy.
-
-
-
-PRIORITY DONATION: In order for priority donation to be implemented, each thread has to have access to all of its donors. This way, when the lock is released, the priorities of the thread that released the lock and the thread that got it can be reevaluated. One solution that we initially implementeed was to have a list of donors for every thread. The solution that we decided to switch to was to have the list of acquired locks for every thread. The latter approach has a number of important benefits:
-	1) It costs less memory to have a list of locks when to have a list of donors, because the overall number of locks should (in most situations) be less than the number of threads. Moreover, each lock already has a list of threads that are waiting on it (accessed as lock.semaphore.waiters). 
-	2) When a thread A releases the lock, and there are multiple threads waiting on this lock, a thread B will be chosen to have the lock after A. The rest of the threads waiting on the lock should cease donating their priority to A and start donating their priority to B. If the information about donations is stored as the list of locks, this is a O(1) operation. In the other case, it is O(n) operation, where n is the number of threads waiting on the thread that released the lock. 
-
-PRIORITY_DONATION_OLD_VERSION: For this problem, we gave each thread a list that holds the incoming donations. When it is called to update through the function "update_actual_priority". When a thread hits a lock, all it does is adds to the list of the thread it wants to donate to and tells the thread to update its priority. This solution manages to discriminate between a thread's actual priority and its "base" priority, which is the priority that it returns to after being a doner.
-
-Notice then that we need to deal with relaying donations. Suppose we have an ordering of priority of A>B>C If thread A and thread B are both waiting on lock 1 which thread C currently owns, when thread C releases the lock, A obtains the lock and B must be donating to A (in case A tries to lower its base priority).
-
-Another option we could have used was to keep a list of locks that a thread holds. This would have given a more direct solution as we could have just 
+ALARM: For this problem, we combined two different solutions we came up with. One approach was for each thread to have a unique semaphore used for sleeping.  Each tick, the clock interrupt handler would check every thread and wake up the ones that need to be woken up. Consequently, this solution would have been very time inefficient. The other solution was to allocate memory for a new semaphore each time a thread went to sleep and to store these semaphores in a sorted list, waking them up at the precalculated time. This solution would have been using dynamic memory allocation, which is something that should be avoided when possible.
+Our final solution instead uses both of these initial ideas by having a list_elem as well as a semaphore and a time-to-be-awaken fields in the thread structure. This way, sleeping threads can be put in a list sorted by the time they should be awakened and no dynamic memory allocation is needed.
+By putting the semaphore in the thread struct, we manage to not have to constantly malloc and free new semaphores each time a thread goes to sleep. Furthermore, by using an ordered list, we don't have to iterate through all threads at every tick, which would have been time inefficient. 
+A disadvantage to our final design choice is that we added a lot of new fields to the thread structure, which might never be used (such as the awake_time and awake_semaphores given to threads that may never sleep). Under the assumptions that the sleep function is being widely used, these new fields help to improve the overall efficiency.
