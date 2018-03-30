@@ -20,11 +20,8 @@ void sema_self_test (void);
 /* Lock. */
 struct lock 
   {
-    struct thread *holder;      /* Thread holding lock. */
+    struct thread *holder;      /* Thread holding lock (for debugging). */
     struct semaphore semaphore; /* Binary semaphore controlling access. */
-    int priority;               /* The highes priority among the threads
-                                   waiting on this lock */
-    struct list_elem elem;      /* Supports lock_list in struct thread*/
   };
 
 void lock_init (struct lock *);
@@ -43,9 +40,6 @@ void cond_init (struct condition *);
 void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
-
-list_less_func sort_semaphores; /* to sort lists of semaphores held by
-condition variables. */
 
 /* Optimization barrier.
 

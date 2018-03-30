@@ -3,14 +3,9 @@
 
 #include <round.h>
 #include <stdint.h>
-#include "threads/synch.h"
 
 /* Number of timer interrupts per second. */
 #define TIMER_FREQ 100
-
-#define TRUE 1
-#define FALSE 0
-
 
 void timer_init (void);
 void timer_calibrate (void);
@@ -30,7 +25,5 @@ void timer_udelay (int64_t microseconds);
 void timer_ndelay (int64_t nanoseconds);
 
 void timer_print_stats (void);
-
-list_less_func compare_times;
 
 #endif /* devices/timer.h */

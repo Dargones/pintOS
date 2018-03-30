@@ -4,7 +4,6 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -88,11 +87,7 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Actual priority. It may change when
-    somebody donates priority to the thread*/
-    int base_priority;                  /* The base priority that can only be
-    changed when the thread is initialized, or if the thread calls
-    set_priority()*/
+    int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -105,16 +100,6 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
-
-    /* Elements used for putting threads to sleep */
-    int64_t awake_time;                 /* The time (in ticks) to wake up */
-    struct semaphore awake_sem;         /* Unique semaphore to put thread to sleep */
-    struct list_elem awake_elem;        /* List element to put this thread in a list */
-
-    /* Lock that thread attempts to hold or holds */
-    struct lock *want_lock;  /* The lock on which the thread currently waits */
-
-    struct list lock_list; /* The list of locks this thread acquired */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -152,16 +137,5 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
-/*Functions used for list ordering according to priority */
-list_less_func sort_by_max_elem; /*criteria to return max priority ordering*/
-list_less_func sort_by_min_elem; /*criteria to return min priority ordering*/
-
-/* Functions for updating thread and lock priorities (Priority of a lock is the
- maximum of the priorities of the threads waiting on this lock) */
-void update_thread_priority(struct thread *to_update);
-
-int update_single_thread_priority(struct thread *to_update);
-int update_single_lock_priority(struct lock *to_update, struct list_elem *changed);
 
 #endif /* threads/thread.h */
