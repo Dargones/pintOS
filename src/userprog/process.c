@@ -19,7 +19,7 @@
 #include "threads/vaddr.h"
 
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool load (char *cmdline, void (**eip) (void), void **esp);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -41,7 +41,7 @@ process_execute (const char *file_name)
 
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, file_name);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -208,7 +208,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp) 
+load (char *file_name, void (**eip) (void), void **esp) 
 {
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
@@ -219,6 +219,17 @@ load (const char *file_name, void (**eip) (void), void **esp)
   char *save_ptr, *token;
   char *argv[MAX_ARGS];
   int argc;
+
+
+  argc = 0;
+  for (token = strtok_r (file_name, DELIM, &save_ptr); token != NULL;
+      token = strtok_r (NULL, DELIM, &save_ptr)) {
+    argv[argc++] = token;
+    //printf("%s\n", argv[argc-1]);
+    if (argc == MAX_ARGS - 1)
+      break;
+  }
+  argv[argc] = NULL;
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -305,16 +316,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
           break;
         }
     }
-
-  argc = 0;
-  for (token = strtok_r (file_name, DELIM, &save_ptr); token != NULL;
-      token = strtok_r (NULL, DELIM, &save_ptr)) {
-    argv[argc++] = token;
-    // printf("%s\n", argv[argc-1]);
-    if (argc == MAX_ARGS - 1)
-      break;
-  }
-  argv[argc] = NULL;
 
   /* Set up stack. */
   if (!setup_stack (esp, argv, argc))
@@ -439,6 +440,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
+
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
@@ -446,30 +448,37 @@ setup_stack (void **esp, char **argv, int argc)
 {
   uint8_t *kpage;
   bool success = false;
-  int plen = sizeof(void *);
-  void *offset = PHYS_BASE;
+  int p_size = sizeof(void *);
+  void *arg_pointer = PHYS_BASE;
   int i;
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success) {
+        *esp = PHYS_BASE;
         for (i = argc - 1; i >= 0; i--) {
           *esp -= (strlen(argv[i]) + 1);
           strlcpy(*esp, argv[i], strlen(argv[i]) + 1);
         }
-        while ((unsigned int) (*esp) % plen !=0) {
+        while ((unsigned) (*esp) % p_size !=0) {
           *esp -= 1;
           *(uint8_t *) *esp = 0x00;
         }
-        *esp -=plen;
+        *esp -=p_size;
         *(uint32_t *) *esp = (uint32_t)0;
         for (i = argc - 1; i >= 0; i--) {
-          offset -= strlen(argv[i]) + 1;
-          *esp = *esp - plen;
-          *(int *)*esp = (int *)offset;
+          arg_pointer -= (strlen(argv[i]) + 1);
+          *esp -=p_size;
+          (*(uint32_t**)(*esp)) = (uint32_t *)arg_pointer;
         }
-        hex_dump(*esp, *esp, (int)(PHYS_BASE - *esp), true);
+        *esp -= p_size;
+        (*(uintptr_t **) (*esp)) = (*esp + p_size);
+        *esp -= p_size;
+        *(int *)*esp = argc;
+        *esp -= p_size;
+        *(int *)*esp = 0;
+        //hex_dump((uintptr_t) *esp, *esp, (int)(PHYS_BASE-*esp), true);
       }
       else
         palloc_free_page (kpage);
