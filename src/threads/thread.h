@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -23,6 +24,9 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+#define RUNNING -100 /*value assigned o exitcode variable if the 
+thread is stil running*/
 
 /* A kernel thread or user process.
 
@@ -80,6 +84,17 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+struct child_info {
+  /* stores informatin about a child of a thread. Even then the child terminates,
+  this information is preserved so that the parent can wait on a child that 
+  already terminated*/
+  int exitcode;
+  //bool is_waited_upon;
+  tid_t tid;
+  struct list_elem elem;
+  struct semaphore sema;
+};
+
 struct thread
   {
     /* Owned by thread.c. */
@@ -92,6 +107,9 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    struct list child_list;             /* List of child_info of this thread. */
+    struct child_info *info;
+              
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -100,6 +118,9 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+
+
   };
 
 /* If false (default), use round-robin scheduler.
@@ -114,7 +135,7 @@ void thread_tick (void);
 void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
-tid_t thread_create (const char *name, int priority, thread_func *, void *);
+struct thread *thread_create (const char *name, int priority, thread_func *, void *);
 
 void thread_block (void);
 void thread_unblock (struct thread *);
