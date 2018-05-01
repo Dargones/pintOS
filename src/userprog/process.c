@@ -28,23 +28,40 @@ static bool load (char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy;
-
-  tid_t tid;
+  char *fn_copy, *name, *save_ptr;
+  struct thread *child;
+  struct child_info *info;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
+  name = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+  strlcpy (name, fn_copy, PGSIZE);
+  name = strtok_r (name, DELIM, &save_ptr);
 
+  info = palloc_get_page(0);
+  if (info == NULL)
+    return TID_ERROR;
+
+  info->exitcode = RUNNING;
+  //info->is_waited_upon = false;
+  sema_init(&info->sema, 0);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+  child = thread_create (name, PRI_DEFAULT, start_process, fn_copy);
+  if (child == NULL) {
     palloc_free_page (fn_copy); 
-  return tid;
+    palloc_free_page (info);
+    return TID_ERROR;
+  } 
+  child->info = info;
+  info->tid = child->tid;
+  list_push_back(&(thread_current()->child_list), &(info->elem));
+  palloc_free_page (name);
+  return child->tid;
 }
 
 /* A thread function that loads a user process and starts it
@@ -88,9 +105,43 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid)
 {
-  return -1;
+  //printf("I gonna wait\n");
+  struct thread *t = thread_current ();
+  struct list *child_list = &(t->child_list);
+
+  struct child_info *child = NULL;
+  struct list_elem *e = NULL;
+
+  if (!list_empty(child_list)) {
+    //printf("Looping throug chilren\n");
+    for (e = list_begin(child_list); e != list_end(child_list); e = list_next(e)) {
+      child = list_entry(e, struct child_info, elem);
+      if (child->tid == child_tid) 
+        break;
+    }
+  }
+  //printf("Child chosen: %d\n", child==NULL);
+  if (child == NULL) {
+    //printf("No such child\n");
+    return -1; 
+  }
+  if (child->exitcode != RUNNING) {
+    //printf("Child already exited\n");
+    return child->exitcode;
+  }
+  /*if (child->is_waited_upon) {
+    printf("Already waiting\n");
+    return -1; 
+  }*/
+  //printf("Yep you are gonna wait\n");
+  sema_down(&child->sema);
+  //printf("Waiting completed\n");
+  list_remove (e);
+  int result = child->exitcode;
+  palloc_free_page(child);
+  return result;
 }
 
 /* Free the current process's resources. */
@@ -451,6 +502,7 @@ setup_stack (void **esp, char **argv, int argc)
   int p_size = sizeof(void *);
   void *arg_pointer = PHYS_BASE;
   int i;
+  //printf("p_size = %d\n", p_size);
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
@@ -459,25 +511,30 @@ setup_stack (void **esp, char **argv, int argc)
         *esp = PHYS_BASE;
         for (i = argc - 1; i >= 0; i--) {
           *esp -= (strlen(argv[i]) + 1);
-          strlcpy(*esp, argv[i], strlen(argv[i]) + 1);
+          memcpy(*esp, argv[i], strlen(argv[i]) + 1);
         }
         while ((unsigned) (*esp) % p_size !=0) {
           *esp -= 1;
           *(uint8_t *) *esp = 0x00;
         }
+
         *esp -=p_size;
-        *(uint32_t *) *esp = (uint32_t)0;
+        *(int *) *esp = 0;
+
         for (i = argc - 1; i >= 0; i--) {
           arg_pointer -= (strlen(argv[i]) + 1);
           *esp -=p_size;
-          (*(uint32_t**)(*esp)) = (uint32_t *)arg_pointer;
+          *((void**)(*esp)) = arg_pointer;
         }
+        //link to argv
         *esp -= p_size;
-        (*(uintptr_t **) (*esp)) = (*esp + p_size);
+        *((void **) (*esp)) = (*esp + p_size);
+        //argc
         *esp -= p_size;
-        *(int *)*esp = argc;
+        *((int *)*esp) = argc;
+        //return adress
         *esp -= p_size;
-        *(int *)*esp = 0;
+        *((int *)*esp) = 0;
         //hex_dump((uintptr_t) *esp, *esp, (int)(PHYS_BASE-*esp), true);
       }
       else
