@@ -140,6 +140,14 @@ Create a file named FILE_NAME wit hinitial size being SIZE
 */
 int sys_create(char* file_name, int size) {
   validate_pointer(file_name);
+  char *ch = file_name;
+  bool only_spaces = true;
+  /* TODO */
+  while (ch != NULL) 
+  	if (*(ch++) != DELIM)
+  		only_spaces = false;
+  if (only_spaces)
+  	return false;
   lock_acquire (&lock); 
   bool result = filesys_create(file_name, size);
   lock_release (&lock);
