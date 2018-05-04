@@ -84,10 +84,12 @@ thread is stil running*/
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+
+
+/*stores information about a child of a thread. Even then the child terminates,
+this information is preserved so that the parent can wait on a child that 
+already terminated*/
 struct child_info {
-  /* stores information about a child of a thread. Even then the child terminates,
-  this information is preserved so that the parent can wait on a child that 
-  already terminated*/
   int exitcode;
   //bool is_waited_upon;
   tid_t tid;
@@ -108,7 +110,7 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     struct list child_list;             /* List of child_info of this thread. */
-    struct list files_list;
+    struct list files_list;             /* List of files*/
     struct child_info *info;
               
 
