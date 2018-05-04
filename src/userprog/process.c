@@ -42,6 +42,13 @@ process_execute (const char *file_name)
   strlcpy (name, fn_copy, PGSIZE);
   name = strtok_r (name, DELIM, &save_ptr);
 
+  if (!simple_lookup(name)) { /* validaing that the file to be executed
+    actually exists */
+    palloc_free_page (name); 
+    palloc_free_page (fn_copy); 
+    return TID_ERROR;
+  }
+
   info = palloc_get_page(0);
   if (info == NULL)
     return TID_ERROR;
@@ -56,7 +63,7 @@ process_execute (const char *file_name)
     palloc_free_page (fn_copy); 
     palloc_free_page (info);
     return TID_ERROR;
-  } 
+  }
   child->info = info;
   info->tid = child->tid;
   list_push_back(&(thread_current()->child_list), &(info->elem));
@@ -296,6 +303,7 @@ load (char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
 
+  //printf("%s|\n", file_name);
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)

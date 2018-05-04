@@ -94,7 +94,6 @@ lookup (const struct dir *dir, const char *name,
 {
   struct dir_entry e;
   size_t ofs;
-  
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
@@ -120,7 +119,6 @@ dir_lookup (const struct dir *dir, const char *name,
             struct inode **inode) 
 {
   struct dir_entry e;
-
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
@@ -130,6 +128,16 @@ dir_lookup (const struct dir *dir, const char *name,
     *inode = NULL;
 
   return *inode != NULL;
+}
+
+/*
+The very simple lookup function that returns true if the file named NAME
+is inside the root directory. Written to pass the exec-missing test
+*/
+bool simple_lookup(char *name) {
+  struct dir *dir = dir_open_root();
+  struct dir_entry e;
+  return lookup(dir, name, &e, NULL);
 }
 
 /* Adds a file named NAME to DIR, which must not already contain a
