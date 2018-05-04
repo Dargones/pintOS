@@ -11,5 +11,9 @@ void sys_exit(int status);
 int sys_create(char* filename, unsigned initial_size);
 void get_args(void **esp, void **argv, int argc);
 int sys_exec(char *cmdline);
+int sys_open(char* file);
+void sys_close(int id);
+int sys_read(int id, void *buffer, unsigned size);
+
 
 #endif /* userprog/syscall.h */

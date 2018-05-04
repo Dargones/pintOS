@@ -8,8 +8,11 @@
 #include "userprog/process.h"
 #include "threads/vaddr.h"
 #include "threads/synch.h"
+#include "threads/palloc.h"
+#include "filesys/file.h"
 
 static void syscall_handler (struct intr_frame *);
+struct file_descriptor *find_file_desc(struct thread *t, int id);
 struct lock sys_lock;
 
 void
@@ -23,6 +26,7 @@ static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {	
 	void *argv[MAX_ARGS];
+	validate_pointer(f->esp);
 	int call_num = *(int *)f->esp;
 	//printf("callnum: %d\n", call_num);
 
@@ -41,7 +45,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 	    }
 		case SYS_WAIT: {
 			get_args(f->esp, argv, 1);
-      		f->eax = sys_wait((tid_t)argv[0]);
+      		f->eax = process_wait((tid_t)argv[0]);
       		break;
     	}
     	case SYS_EXEC: {
@@ -53,45 +57,63 @@ syscall_handler (struct intr_frame *f UNUSED)
     		get_args(f->esp, argv, 2);
     		f->eax = sys_create((char*) argv[0], (int) argv[1]);
     	}
+    	case SYS_OPEN: {
+      		get_args(f->esp, argv, 1);
+      		f->eax = sys_open((char *)argv[0]);
+      		break;
+   		}
+   		case SYS_CLOSE: {
+   			get_args(f->esp, argv, 1);
+   			sys_close((int)argv[0]);
+      		break;
+   		}
+	    case SYS_FILESIZE: {
+	      	get_args(f->esp, argv, 2);
+	      	//f->eax = sys_filesize((int)argv[0]);
+	     	break;
+	    }
+	    case SYS_READ: {
+		    get_args(f->esp, argv, 3);
+		    f->eax = sys_read((int)argv[0], argv[1], (unsigned)argv[2]);
+		    break;
+	    }
 	}
 }
 
 void validate_pointer(void *p) {
-	if ((p < CODE_AREA_STARTS) || (p >= PHYS_BASE)) {
+	if ((p==NULL) || (p < CODE_AREA_STARTS) || (p >= PHYS_BASE)) 
 		sys_exit(-1);
-	}
 }
 
 void sys_exit(int status) {
   printf("%s: exit(%d)\n", thread_current()->name, status);
   struct child_info *info = thread_current()->info;
-  //printf("child info acquired\n");
   if(info != NULL) {
-  	//printf("child info is not NULL\n");
     info->exitcode = status;
-    //printf("Exitcode_set\n");
     ASSERT(status!=RUNNING);
-    //printf("Asserion done\n");
-    //printf("id: %d\n", info->tid);
-    //printf("sema_value: %d\n", info->sema.value);
     sema_up(&(info->sema));
-    //printf("child info updated. Calling thread_exit()\n");
   }
   thread_exit();
-  //printf("Thread_exited\n");
 }
 
-int sys_write(int fd, void *buffer, unsigned size) {
+int sys_write(int id, void *buffer, unsigned size) {
+  int result;	
   validate_pointer(buffer);
-  if(fd == 1) { 
+  validate_pointer(buffer + size -1);
+  lock_acquire (&sys_lock);
+  if(id == 1) { 
     putbuf(buffer, size);
+    lock_release (&sys_lock);
     return size;
   }
-  return 0;
-}
-
-int sys_wait(int pid) {
-  return process_wait(pid);
+  struct file_descriptor* fd = find_file_desc(thread_current(), id);
+  if(fd && fd->file)  {
+  	result = file_write(fd->file, buffer, size);
+    lock_release (&sys_lock);
+    return result;
+  }
+  lock_release (&sys_lock);
+  return -1;
 }
 
 tid_t sys_exec(char *cmdline) {
@@ -104,11 +126,96 @@ tid_t sys_exec(char *cmdline) {
 
 int sys_create(char* filename, unsigned initial_size) {
   validate_pointer(filename);
+  //if (filename == "")
+  	//return -1; /* for create_empty test*/
   bool return_code;
   lock_acquire (&sys_lock); 
   return_code = filesys_create(filename, initial_size);
   lock_release (&sys_lock);
   return return_code;
+}
+
+int sys_open(char* file_name) {
+  validate_pointer(file_name);
+  struct file *f;
+  struct file_descriptor *fd = palloc_get_page(0);
+  if (!fd)
+    return -1;
+  lock_acquire (&sys_lock);
+  f = filesys_open(file_name);
+  if (!f) {
+    palloc_free_page (fd);
+    lock_release (&sys_lock);
+    return -1;
+  }
+  struct list* files = &thread_current()->files_list;
+  if (list_empty(files))
+    fd->id = 3;
+  else
+    fd->id = (list_entry(list_back(files), struct file_descriptor, elem)->id) + 1;
+  fd->file = f;
+  list_push_back(files, &(fd->elem));
+  lock_release (&sys_lock);
+  return fd->id;
+}
+
+void sys_close(int id) {
+  lock_acquire (&sys_lock);
+  struct file_descriptor *fd = find_file_desc(thread_current(), id);
+  if (fd) {
+    file_close(fd->file);
+    list_remove(&(fd->elem));
+    palloc_free_page(fd);
+  }
+  lock_release (&sys_lock);
+}
+
+struct file_descriptor *find_file_desc(struct thread *t, int id) {
+  if (id < 3)
+    return NULL;
+  struct list_elem *e;
+  if (! list_empty(&t->files_list)) {
+    for(e = list_begin(&t->files_list); e != list_end(&t->files_list); e = list_next(e)) {
+      struct file_descriptor *fd = list_entry(e, struct file_descriptor, elem);
+      if(fd->id == id)
+        return fd;
+    }
+  }
+  return NULL; 
+}
+
+int sys_read(int id, void *buffer, unsigned size) {
+  int result, i;
+  validate_pointer(buffer);
+  validate_pointer(buffer + size -1);
+  lock_acquire (&sys_lock);
+
+  if(id == 0) { 
+    /* TODO */
+    lock_release (&sys_lock);
+    return -1;
+  }
+  struct file_descriptor* fd = find_file_desc(thread_current(), id);
+  if(fd && fd->file) {
+    result = file_read(fd->file, buffer, size);
+    lock_release (&sys_lock);
+    return result;
+  }
+  lock_release (&sys_lock);
+  return -1;
+}
+
+
+/* Writes BYTE to user address UDST.
+   UDST must be below PHYS_BASE.
+   Returns true if successful, false if a segfault occurred. */
+static bool
+put_user (uint8_t *udst, uint8_t byte)
+{
+  int error_code;
+  asm ("movl $1f, %0; movb %b2, %1; 1:"
+       : "=&a" (error_code), "=m" (*udst) : "q" (byte));
+  return error_code != -1;
 }
 
 void get_args(void **esp, void **argv, int argc) {
