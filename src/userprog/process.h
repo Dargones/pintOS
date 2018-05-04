@@ -2,7 +2,8 @@
 #define USERPROG_PROCESS_H
 
 #define DELIM " "
-#define MAX_ARGS 128
+#define MAX_ARGS 128 /* the maximum number of arguments. The manual explicitely
+states not to use it, but it is a good estmation an an upper bound*/
 
 #include "threads/thread.h"
 

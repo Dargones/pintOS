@@ -4,17 +4,19 @@
 #include "filesys/off_t.h"
 #include "lib/kernel/list.h"
 
-/* An open file. */
+/* An opened file. */
 struct file {
     struct inode *inode;        /* File's inode. */
     off_t pos;                  /* Current position. */
     bool deny_write;            /* Has file_deny_write() been called? */
 };
 
+/* File desription held by the thread that opens that file*/
 struct file_descriptor {
-	int id;
-	struct list_elem elem;
-	struct file *file;
+	int id; /* unique id that is used to reference the file
+	when writing or reading */
+	struct list_elem elem; /* to put in on the files_list (struct thread)*/
+	struct file *file; /* the link to the file described*/
 };
 
 struct inode;
