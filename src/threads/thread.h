@@ -85,7 +85,7 @@ thread is stil running*/
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
 struct child_info {
-  /* stores informatin about a child of a thread. Even then the child terminates,
+  /* stores information about a child of a thread. Even then the child terminates,
   this information is preserved so that the parent can wait on a child that 
   already terminated*/
   int exitcode;
@@ -108,6 +108,7 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     struct list child_list;             /* List of child_info of this thread. */
+    struct list files_list;
     struct child_info *info;
               
 
