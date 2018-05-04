@@ -94,12 +94,12 @@ this information is preserved so that the parent can wait on a child that
 already terminated.
 */
 struct child_info {
-  int exitcode; /* the number passed to the exit system call
-  whem the child exited. If exitcode == RUNNING, the thread is still
-  running*/
-  tid_t tid; /* Child's tid*/
-  struct list_elem elem; /* used with child_list in struct thread */
-  struct semaphore sema; /* the semaphore to wait upon */
+  /* the number passed to the exit system call when the child exited.*/
+  int exitcode;  /*If exitcode == RUNNING, the thread is still running*/
+
+  tid_t tid;                            /* Child's tid*/
+  struct list_elem elem;                /* for child_list, list functionality */
+  struct semaphore sema;                /* the semaphore to wait upon */
 };
 
 struct thread
