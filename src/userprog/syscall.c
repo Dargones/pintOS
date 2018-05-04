@@ -69,7 +69,7 @@ syscall_handler (struct intr_frame *f UNUSED)
    		}
 	    case SYS_FILESIZE: {
 	      	get_args(f->esp, argv, 2);
-	      	//f->eax = sys_filesize((int)argv[0]);
+	      	f->eax = sys_filesize((int)argv[0]);
 	     	break;
 	    }
 	    case SYS_READ: {
@@ -205,6 +205,23 @@ int sys_read(int id, void *buffer, unsigned size) {
   return -1;
 }
 
+struct file* process_get_file(int fd){
+
+}
+
+int sys_filesize(int id){
+	lock_acquire(&sys_lock);
+	struct file* f = find_file_desc(thread_current(), id)->file;
+
+	if(!f){
+		lock_release(&sys_lock);
+		return -1;
+	}
+
+	int filesize = file_length(f);
+	lock_release(&sys_lock);
+	return filesize;
+}
 
 /* Writes BYTE to user address UDST.
    UDST must be below PHYS_BASE.
