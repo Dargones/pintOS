@@ -1,0 +1,166 @@
+CMSC 326
+Design Document for Project #2: System Calls and User Programs
+Due: 28.March.2018
+
+This plain text file should be called Project2_Design.txt and it
+should be completed and uploaded on Moodle.
+
+Your submission will receive 50% of its points based on how well it
+passes my tests. The remaining 50% is divided between the design
+document and your code quality. The latter includes commenting,
+clarity, consistency with the Pintos style, and efficiency (in that
+order).
+
+Please limit the width of all lines in this document to no more than 100 characters.
+
+---- GROUP ----
+
+Sasha Fedchin <af9562@bard.edu>
+Karina Salem <ks5130@bard.edu>
+Darren Tirto <dt2925@bard.edu>
+
+GitHub Repository: https://github.com/Dargones/pintOS/tree/project2
+IMPORTANT: Project #2 is on the project2 branch
+
+---- PRELIMINARIES ----
+
+If you have any preliminary comments on your submission, please give them here.
+
+Please cite any offline or online sources you consulted while
+preparing your submission, other than the Pintos documentation, course
+text, and notes provided by the instructor.
+
+Sources:
+http://bits.usc.edu/cs350/assignments/Pintos_Guide_2016_11_13.pdf - a supplementary to the Pintos documentation
+https://github.com/wookayin/pintos - a GitHub repository which we consulted to get the general sense of how we arrange our system call documentation.
+
+
+*************************Section 1: Argument Passing
+
+---- DATA STRUCTURES ----
+
+Copy here the declaration of each new or changed `struct' or `struct'
+member, global or static variable, `typedef', or enumeration.
+IDENTIFY THE PURPOSE OF EACH IN 25 WORDS OR LESS. Precede each by its
+directory and file name.
+
+None were used. 
+
+---- ALGORITHMS ----
+
+Q1. Describe how you implemented argument passing and filling argv[ ]?
+How do you avoid overflowing the stack memory page?
+
+We wrote a get_args() function that parses the arguments. Arguments are of two types, void* and int, both having the size of sizeof(void *). Hence, all of the arguments can be placed into a single array. We check that the stack pointer and pointers to all of the arguments lie within the user space (below PHYS_BASE, etc.) and are paged. If the argument is a pointer in itself and has to be dereferenced, we check its validity inside the corresponding system call function.
+
+Q2. In Pintos, the kernel separates commands into a executable name
+and arguments. In Unix-like systems, the shell does this separation.
+Identify at least one advantage of the Unix approach.
+
+Parsing arguments in the shell is what allows the use of wildcards and other special characters (which are then expanded into actual arguments). Therefore, it is likely that the shell will parse the arguments in one way or another.  If the shell already parses the arguments, it is unnecessary for the kernel to do the same job.
+
+*************************Section 2: System Calls
+
+---- DATA STRUCTURES ----
+
+Copy here the declaration of each new or changed `struct' or `struct'
+member, global or static variable, `typedef', or enumeration.
+IDENTIFY THE PURPOSE OF EACH IN 25 WORDS OR LESS. Precede each by its
+directory and file name.
+
+STRUCTURE 1: file (Modified existing structure)
+Location: src/filesys/file.h
+We just moved this structure from file.c to file.h
+
+
+STRUCTURE 2: file_descriptor (New structure)
+Location: src/filesys/file.h
+File desription held by the thread that opens that file. We enable linked list functionality so that file_descriptors can be put onto a list held by a thread structure.
+
+struct file_descriptor {
+int id;                    /* Unique file id when writing or reading*/
+struct list_elem elem;             /* files_list functionality (struct thread)*/
+struct file *file;                 /* the link to the file described*/
+};
+
+
+STRUCTURE 3: child_info (New structure)
+Location: src/threads/thread.h
+Stores information about child of a thread. Even then child terminates, its information is preserved so that parent can wait on a child that already terminated.
+
+struct child_info {
+/* the number passed to the exit system call when the child exited.*/
+int exitcode;  /*If exitcode == RUNNING, the thread is still running*/
+
+tid_t tid;                                /* Child's tid*/
+struct list_elem elem;                    /* for child_list functionality */
+struct semaphore sema;                /* the semaphore to wait upon */
+bool parent_alive;                 /* true if the parent process is still running */
+};
+
+
+STRUCTURE 4: thread (Modified existing structure)
+Location: src/threads/thread.h
+Threads were modified to hold a struct that stores information about itself as a child (read struct above) as well as to hold a list of children and a list of file details (read struct above).
+   struct thread
+   {
+     /* Owned by thread.c. */
+    ...
+     /* Shared between thread.c and synch.c. */
+     struct list_elem elem;              /* List element. */
++    struct list child_list;             /* List of child_info of this thread.*/
++    struct list files_list;             /* List of file descriptors.*/
++    struct child_info *info;            /* Info about this thread as a child.*/
+    ...
+   };
+
+
+Q3. Describe how file descriptors are associated with open files. Are
+file descriptors unique within the entire OS or just within a single
+process?
+
+File descriptors are unique for the process, because they have to be indexed (the id associated with a file descriptor is what is used by write and read system calls to refer to a particular file). Two processes can read the same file and so there is a one-to-many relationship between the file and its descriptors. 
+
+---- ALGORITHMS ----
+
+Q4. Describe how you check memory addresses for validity. Refer to
+your specific procedures. During system calls where to these memory
+address validations occur?
+
+We have created validate_pointer() function, which is called whenever a pointer is to be dereferenced. The function checks that the given pointer is not NULL, that it points below PHYS_BASE (i.e. it is in the user space), and above 0x08048000 (the address at which the code segment starts). Finally, the function makes use of the build-in pagedir_get_page() method that ensures that the corresponding page is loaded into memory.
+
+Q5. How does the implementation of your wait system call work? How
+does it interact with related processes and process termination?
+
+Each thread holds a link to a child_info struct that contains information about the thread’s id, its exit code (if known) as well as the semaphore that can be used by the thread’s parent to wait on its child. Before exiting, a thread does an up on this semaphore and records its exit code. 
+
+Also, each thread holds a list of child_info structs that describe its children. When the wait system call is issued, the parent finds the corresponding child_info struct and does a down on its semaphore. 
+
+We decided to separate thread and child_info structures because, when the thread exits, it frees the memory used to hold the thread struct. However, the thread’s exitcode has to persist until the parent decides to wait on the thread. Alternatively, we could modify thread_exit() in thread.c to make the whole thread structure “live” until the parent decides to wait on it, but this latter solution would be less memory efficient.
+
+---- SYNCHRONIZATION ----
+
+Q6. The exec system call returns -1 if loading the new executable
+fails, so it cannot return before the new executable has completed
+loading. How does your code ensure this? How is the load
+success/failure status passed back to the thread that calls exec?
+
+After making a call to thread_create(), the parent process does a down on a semaphore (the same semaphore that is later used for waiting). If the execution of start_process() or load() fails, the child (i.e. the kernel loading the child) sets its exitcode to FAILED_TO_LOAD, a special constant. After loading - whether successfully or not -  the child thread does an up on the semaphore. The parent then can compare the child’s exitcode to FAILED_TO_LOAD and this way it will know whether the child has actually loaded itself or not. If not, the parent can then free the child_info structure. By the time the parent does this comparison, the child may have successfully completed its execution or may still be running - both cases are supported.
+
+Q7. Consider parent process P with child process C. How do you
+ensure proper synchronization and avoid race conditions when P
+calls wait(C) before C exits? After C exits? How do you ensure
+that all resources are freed in each case? How about when P
+terminates without waiting, before C exits? After C exits?
+
+Instances of the thread structure are freed by the scheduler within thread_schedule_tail() after they set their status to THREAD-DYING in thread_exit. This is the default behaviour which we did not altered. Given that P is the parent and C is the child, the freeing of C’s child_info is mainly managed by P. We implemented 3 different ways that C’s child_info is removed:
+1. If P is exiting and C is dead, then P frees C’s child_info.
+2. When P is waiting on C and then C finishes, P frees up C’s child_info
+3. If C is exiting, it checks to see if P is still alive. If it isn’t, it frees C’s child_info
+
+The same three cases can be paraphrased as follows:
+
+If P calls wait(C) before C exits, then by (2), it free C’s child_info.
+If P calls wait(C) after C exits, then by (2), it frees C’s child_info.
+If P terminates without waiting and then C exits, then C by (3), it frees its own child_info.
+If C exits and then P terminates without waiting then by (1), it frees C’s child_info.
