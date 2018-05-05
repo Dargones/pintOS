@@ -69,7 +69,7 @@ process_execute (const char *file_name)
   sema_down(&info->sema);
   if (info->exitcode == FAILED_TO_LOAD) {
     palloc_free_page(info);
-    return -1;
+    return TID_ERROR;
   }
   list_push_back(&(thread_current()->child_list), &(info->elem));
   return info->tid;
