@@ -13,10 +13,9 @@ struct file {
 
 /* File desription held by the thread that opens that file*/
 struct file_descriptor {
-	int id; /* unique id that is used to reference the file
-	when writing or reading */
-	struct list_elem elem; /* to put in on the files_list (struct thread)*/
-	struct file *file; /* the link to the file described*/
+	int id; 					/* Unique file id when writing or reading*/
+	struct list_elem elem; 		/* files_list functionality (struct thread)*/
+	struct file *file; 			/* the link to the file described*/
 };
 
 struct inode;
