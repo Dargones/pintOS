@@ -12,6 +12,7 @@
 #include "userprog/pagedir.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "filesys/directory.h"
 
 static void syscall_handler (struct intr_frame *); 
 struct file_descriptor *get_fd(int id); /* moving the declaration here because
@@ -130,13 +131,15 @@ Execute a file named FILE_NAME
 tid_t sys_exec(char *file_name) {
   validate_pointer(file_name);
   lock_acquire (&lock); 
+  /* the fact that the file named FILE_NAME actually exists is validated
+  in process_execute */
   tid_t result = process_execute(file_name);
   lock_release (&lock);
   return result;
 }
 
 /*
-Create a file named FILE_NAME wit hinitial size being SIZE
+Create a file named FILE_NAME with initial size being SIZE
 */
 int sys_create(char* file_name, int size) {
   validate_pointer(file_name);
