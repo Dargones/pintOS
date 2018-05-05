@@ -89,12 +89,40 @@ Record the exitcode STATUS in the child_info structure and exit.
 void sys_exit(int status) {
   /* This print statement is needed to pass the tests */
   printf("%s: exit(%d)\n", thread_current()->name, status);
+
+  /* WHAT NEEDS TO BE DONE BY THE THREAD AS A CHILD*/
+
   struct child_info *info = thread_current()->info;
-  info->exitcode = status;
-  ASSERT(status!=RUNNING); /* Because RUNNING was set to an arbitrary value,
-  we use this assert statement to make sure that no real exitode equals
-  RUNNING*/
-  sema_up(&(info->sema)); /* Release the waiting parent*/
+  if (info->parent_alive) {
+  	/* if the parent is alive, signal it that the chid exits*/
+  	info->exitcode = status;
+  	ASSERT(status!=RUNNING); /* Because RUNNING was set to an arbitrary value,
+  	we use this assert statement to make sure that no real exitode equals
+  	RUNNING*/
+  	sema_up(&(info->sema)); /* Release the waiting parent*/
+  } else {
+  	/* if the parent is dead, free the child_info struct*/
+  	palloc_free_page(info);
+  }
+
+  /* WHAT NEEDS TO BE DONE BY THE THREAD AS A PARENT*/
+
+  struct list *child_list = &(thread_current()->child_list);
+  struct child_info *child;
+  struct list_elem *e;
+  /* loop through all the children */
+  if (!list_empty(child_list)) {
+    for (e = list_begin(child_list); 
+    	e != list_end(child_list); e = list_next(e)) {
+      child = list_entry(e, struct child_info, elem);
+      child->parent_alive = false; /* signal the child to free its info
+      when exiting*/
+      if (child->exitcode != RUNNING) {
+      	/* free the child's info, if teh child is no longer running*/
+      	palloc_free_page(child);
+      }
+    }
+  }
   thread_exit();
 }
 
@@ -142,14 +170,14 @@ Create a file named FILE_NAME with initial size being SIZE
 */
 int sys_create(char* file_name, int size) {
   validate_pointer(file_name);
-  char *ch = file_name;
+  /*char *ch = file_name;
   bool only_spaces = true;
-  /* TODO */
+  TODO
   while (ch != NULL) 
   	if (*(ch++) != DELIM)
   		only_spaces = false;
   if (only_spaces)
-  	return false;
+  	return false;*/
   lock_acquire (&lock); 
   bool result = filesys_create(file_name, size);
   lock_release (&lock);
@@ -210,7 +238,7 @@ This is very similar to the write system call.
 Read SIZE bytes from FILE into BUFFER.
 */
 int sys_read(int id, void *buffer, int size) {
-  int result, i;
+  int result;
   validate_pointer(buffer);
   validate_pointer(buffer + size -1);
   lock_acquire (&lock);

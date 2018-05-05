@@ -30,7 +30,10 @@ the child_info struct, when the child thread is still running
 -100 was chosen empirically. The assert statement in sys_exit()
 ensures that actual exitcode is never the same as RUNNING. This is
 merely to keep exicode initialized. */
-#define FAILED_TO_LOAD -101
+#define FAILED_TO_LOAD -101 /* Another special constant to which
+the exitcode is set if the kernel fails to load thread's executable.
+The parent will compare child_info's exitcode to this constant and free
+child_info in case the exitcode equals FAILED_To_LOAD*/
 
 /* A kernel thread or user process.
 
@@ -97,11 +100,12 @@ already terminated.
 */
 struct child_info {
   /* the number passed to the exit system call when the child exited.*/
-  int exitcode;  /*If exitcode == RUNNING, the thread is still running*/
+  int exitcode;  /*If exitcode == RUNNING, the thread is still running */
 
-  tid_t tid;                            /* Child's tid*/
-  struct list_elem elem;                /* For child_list functionality */
-  struct semaphore sema;                /* the semaphore to wait upon */
+  tid_t tid;                 /* Child's tid */
+  struct list_elem elem;     /* For child_list functionality */
+  struct semaphore sema;     /* the semaphore to wait upon */
+  bool parent_alive;         /* true if the parent process is still running */
 };
 
 struct thread
@@ -119,7 +123,6 @@ struct thread
     struct list child_list;             /* List of child_info of this thread.*/
     struct list files_list;             /* List of file descriptors.*/
     struct child_info *info;            /* Info about this thread as a child.*/
-              
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

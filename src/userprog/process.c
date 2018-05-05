@@ -28,49 +28,52 @@ static bool load (char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy, *name, *save_ptr;
+  char *fn_copy, *process_name, *save_ptr;
   struct thread *child;
   struct child_info *info;
 
-  /* Make a copy of FILE_NAME.
-     Otherwise there's a race between the caller and load(). */
+  /* Make a copy of FILE_NAME, to avoid race between the parent an the load */
+  /* Also, make a separate copy for the process name 
+  (only the first argument)*/
   fn_copy = palloc_get_page (0);
-  name = palloc_get_page (0);
-  if (fn_copy == NULL)
+  process_name = palloc_get_page (0);
+  if ((fn_copy == NULL) || (process_name == NULL))
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-  strlcpy (name, fn_copy, PGSIZE);
-  name = strtok_r (name, DELIM, &save_ptr);
+  strlcpy (process_name, fn_copy, PGSIZE);
+  process_name = strtok_r (process_name, DELIM, &save_ptr);
 
-  if (!simple_lookup(name)) { /* validaing that the file to be executed
+  if (!simple_lookup(process_name)) { /* validaing that the file to be executed
     actually exists */
-    palloc_free_page (name); 
+    palloc_free_page (process_name); 
     palloc_free_page (fn_copy); 
     return TID_ERROR;
   }
 
-  info = palloc_get_page(0);
+  info = palloc_get_page(0); /* initializing the child_info structure*/
   if (info == NULL)
     return TID_ERROR;
 
+  info->parent_alive = true;
   info->exitcode = RUNNING;
   sema_init(&info->sema, 0);
 
   /* Create a new thread to execute FILE_NAME. */
-  child = thread_create (name, PRI_DEFAULT, start_process, fn_copy);
-  if (child == NULL) {
+  child = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
+  if (child == NULL) { /* if thread_create() fails*/
     palloc_free_page (fn_copy); 
     palloc_free_page (info);
     return TID_ERROR;
   }
-  child->info = info;
+  child->info = info; /* link the child to its info */
   info->tid = child->tid;
-  palloc_free_page (name);
-  sema_down(&info->sema);
-  if (info->exitcode == FAILED_TO_LOAD) {
+  palloc_free_page (process_name);
+  sema_down(&info->sema); /* wait until the child finishes loading*/
+  if (info->exitcode == FAILED_TO_LOAD) { /* if load() fails*/
     palloc_free_page(info);
     return TID_ERROR;
   }
+  /* push the child_info onto the parent's list */
   list_push_back(&(thread_current()->child_list), &(info->elem));
   return info->tid;
 }
@@ -95,11 +98,16 @@ start_process (void *file_name_)
   palloc_free_page (file_name);
   //printf("current: %s\n", thread_current()->name);
   if (!success) {
+    /* By setting the exitcode to FAILED_TO_LOAD, this function
+    signals the parent that waits on the semaphore in process_execute() that
+    the child failed to load*/
     thread_current()->info->exitcode = FAILED_TO_LOAD;
+     /* allow the parent process to continue process_execute() */
     sema_up(&thread_current()->info->sema);
     thread_exit();
   }
-  sema_up(&thread_current()->info->sema);
+  /* allow the parent process to continue process_execute() */
+  sema_up(&thread_current()->info->sema); 
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -117,19 +125,17 @@ start_process (void *file_name_)
    child of the calling process, or if process_wait() has already
    been successfully called for the given TID, returns -1
    immediately, without waiting.
-
-   This function will be implemented in problem 2-2.  For now, it
-   does nothing. */
+    */
 int
 process_wait (tid_t child_tid)
 {
-  //printf("I gonna wait\n");
   struct thread *t = thread_current ();
   struct list *child_list = &(t->child_list);
 
   struct child_info *child = NULL;
   struct list_elem *e = NULL;
 
+  /* Find the child with the given TID*/
   if (!list_empty(child_list)) {
     for (e = list_begin(child_list); e != list_end(child_list); e = list_next(e)) {
       child = list_entry(e, struct child_info, elem);
@@ -137,13 +143,16 @@ process_wait (tid_t child_tid)
         break;
     }
   }
-  if (child == NULL) {
+  if (child == NULL) { /* if such child never existed*/
     return -1; 
   }
-  sema_down(&child->sema);
+  /* Sema_down() makes the parent process wait. If the child already exited,
+  it did an up on a semaphore and so the parent will not have to wait*/
+  sema_down(&child->sema); 
   list_remove (e);
   int result = child->exitcode;
-  palloc_free_page(child);
+  /* the child exited. Hence, free the corresponding chidl_info structure */
+  palloc_free_page(child); 
   return result;
 }
 
@@ -496,47 +505,60 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 }
 
 
-/* Create a minimal stack by mapping a zeroed page at the top of
-   user virtual memory. */
+/*
+Fill the stack ESP with the ARGC arguments from AGRGV
+*/
 static bool
 setup_stack (void **esp, char **argv, int argc) 
 {
   uint8_t *kpage;
-  bool success = false;
-  int p_size = sizeof(void *);
-  void *arg_pointer = PHYS_BASE;
+  bool success = false; /* return value*/
+  int p_size = sizeof(void *); /* size of the void pointer */
+  void *arg_pointer = PHYS_BASE; /* the pointer to where a certain argument
+  is located. This variable is used inside the second for loop */
   int i;
-  //printf("p_size = %d\n", p_size);
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success) {
-        *esp = PHYS_BASE;
+        *esp = PHYS_BASE; /*  set the pointer to the stack beginnin g */
         for (i = argc - 1; i >= 0; i--) {
-          *esp -= (strlen(argv[i]) + 1);
+          /* decrement the pointer by the size of the argument to be written */
+          *esp -= (strlen(argv[i]) + 1); 
+          /* copy the argument onto the stack */
           memcpy(*esp, argv[i], strlen(argv[i]) + 1);
         }
+
+        /* This is the code that sets the word boubdary to be the multiple
+        of 4 bytes (i.e. of the size of the void pointer). While we understand
+        the purpose of this code and what it does, this is the esact copy of
+        what we were shown in class */
         while ((unsigned) (*esp) % p_size !=0) {
           *esp -= 1;
           *(uint8_t *) *esp = 0x00;
         }
 
+        /* The NULL pointer that indicates the end of the list of pointers
+        to teh arguments */
         *esp -=p_size;
         *(int *) *esp = 0;
 
         for (i = argc - 1; i >= 0; i--) {
+          /* Decrementing ARG_POINTER to point at the where the next 
+          argument is located */
           arg_pointer -= (strlen(argv[i]) + 1);
+          /* Decrementing the esp*/
           *esp -=p_size;
           *((void**)(*esp)) = arg_pointer;
         }
-        //link to argv
+        //writing the pointer to the list of pointers to the arguments
         *esp -= p_size;
         *((void **) (*esp)) = (*esp + p_size);
-        //argc
+        //recordin the number of arguments
         *esp -= p_size;
         *((int *)*esp) = argc;
-        //return adress
+        //setting the return address
         *esp -= p_size;
         *((int *)*esp) = 0;
         //hex_dump((uintptr_t) *esp, *esp, (int)(PHYS_BASE-*esp), true);
