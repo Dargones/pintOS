@@ -98,7 +98,7 @@ struct child_info {
   int exitcode;  /*If exitcode == RUNNING, the thread is still running*/
 
   tid_t tid;                            /* Child's tid*/
-  struct list_elem elem;                /* for child_list, list functionality */
+  struct list_elem elem;                /* For child_list functionality */
   struct semaphore sema;                /* the semaphore to wait upon */
 };
 
@@ -114,9 +114,9 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
-    struct list child_list;             /* List of child_info of this thread. */
-    struct list files_list;             /* List of file descriptors */
-    struct child_info *info;
+    struct list child_list;             /* List of child_info of this thread.*/
+    struct list files_list;             /* List of file descriptors.*/
+    struct child_info *info;            /* Info about this thread as a child.*/
               
 
 #ifdef USERPROG
@@ -143,7 +143,11 @@ void thread_tick (void);
 void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
-struct thread *thread_create (const char *name, int priority, thread_func *, void *);
+
+/*Modified return type of thread create to give back pointer rather than id*/
+struct thread *thread_create (
+  const char *name, int priority, thread_func *, void *
+);
 
 void thread_block (void);
 void thread_unblock (struct thread *);
