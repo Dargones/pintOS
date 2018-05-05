@@ -12,7 +12,6 @@
 #include "userprog/pagedir.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
-#include "filesys/directory.h"
 
 static void syscall_handler (struct intr_frame *); 
 struct file_descriptor *get_fd(int id); /* moving the declaration here because
