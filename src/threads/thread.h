@@ -28,7 +28,9 @@ typedef int tid_t;
 #define RUNNING -100 /* value assigned to exitcode field of 
 the child_info struct, when the child thread is still running 
 -100 was chosen empirically. The assert statement in sys_exit()
-ensures that actual exitcode is never the same as RUNNING */
+ensures that actual exitcode is never the same as RUNNING. This is
+merely to keep exicode initialized. */
+#define FAILED_TO_LOAD -101
 
 /* A kernel thread or user process.
 

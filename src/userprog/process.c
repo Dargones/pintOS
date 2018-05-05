@@ -54,7 +54,6 @@ process_execute (const char *file_name)
     return TID_ERROR;
 
   info->exitcode = RUNNING;
-  //info->is_waited_upon = false;
   sema_init(&info->sema, 0);
 
   /* Create a new thread to execute FILE_NAME. */
@@ -66,9 +65,14 @@ process_execute (const char *file_name)
   }
   child->info = info;
   info->tid = child->tid;
-  list_push_back(&(thread_current()->child_list), &(info->elem));
   palloc_free_page (name);
-  return child->tid;
+  sema_down(&info->sema);
+  if (info->exitcode == FAILED_TO_LOAD) {
+    palloc_free_page(info);
+    return -1;
+  }
+  list_push_back(&(thread_current()->child_list), &(info->elem));
+  return info->tid;
 }
 
 /* A thread function that loads a user process and starts it
@@ -89,8 +93,13 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
+  //printf("current: %s\n", thread_current()->name);
+  if (!success) {
+    thread_current()->info->exitcode = FAILED_TO_LOAD;
+    sema_up(&thread_current()->info->sema);
+    thread_exit();
+  }
+  sema_up(&thread_current()->info->sema);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -122,29 +131,16 @@ process_wait (tid_t child_tid)
   struct list_elem *e = NULL;
 
   if (!list_empty(child_list)) {
-    //printf("Looping throug chilren\n");
     for (e = list_begin(child_list); e != list_end(child_list); e = list_next(e)) {
       child = list_entry(e, struct child_info, elem);
       if (child->tid == child_tid) 
         break;
     }
   }
-  //printf("Child chosen: %d\n", child==NULL);
   if (child == NULL) {
-    //printf("No such child\n");
     return -1; 
   }
-  if (child->exitcode != RUNNING) {
-    //printf("Child already exited\n");
-    return child->exitcode;
-  }
-  /*if (child->is_waited_upon) {
-    printf("Already waiting\n");
-    return -1; 
-  }*/
-  //printf("Yep you are gonna wait\n");
   sema_down(&child->sema);
-  //printf("Waiting completed\n");
   list_remove (e);
   int result = child->exitcode;
   palloc_free_page(child);
