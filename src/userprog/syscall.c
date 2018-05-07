@@ -172,7 +172,9 @@ int sys_create(char* file_name, int size) {
   validate_pointer(file_name);
   /*char *ch = file_name;
   bool only_spaces = true;
-  TODO
+  
+  Attempting to pass CREATE_EMPTY
+
   while (ch != NULL) 
   	if (*(ch++) != DELIM)
   		only_spaces = false;

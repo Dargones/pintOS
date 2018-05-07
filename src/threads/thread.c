@@ -166,7 +166,7 @@ thread_print_stats (void)
    The code provided sets the new thread's `priority' member to
    PRIORITY, but no actual priority scheduling is implemented.
    Priority scheduling is the goal of Problem 1-3. */
-struct thread *thread_create (const char *name, int priority,
+tid_t thread_create (const char *name, int priority,
                thread_func *function, void *aux) 
 {
   struct thread *t;
@@ -174,17 +174,32 @@ struct thread *thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
+  struct child_info *info;
 
   ASSERT (function != NULL);
 
   /* Allocate thread. */
   t = palloc_get_page (PAL_ZERO);
   if (t == NULL)
-    return NULL;
+    return TID_ERROR;
 
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+
+  info = palloc_get_page(0); /* initializing the child_info structure*/
+  if (info == NULL)
+    return TID_ERROR;
+
+  info->parent_alive = true;
+  info->exitcode = RUNNING;
+  sema_init(&info->sema, 0);
+  info->tid = tid;
+  t->info = info; /* link the thread to its info */
+
+  /* push the ino to the parents list of children so that the parent
+  can access it */
+  list_push_back(&(thread_current()->child_list), &info->elem);
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -204,7 +219,7 @@ struct thread *thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  return t;
+  return tid;
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled

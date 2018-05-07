@@ -20,6 +20,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (char *cmdline, void (**eip) (void), void **esp);
+struct child_info *get_child_info(tid_t tid);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -29,8 +30,8 @@ tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy, *process_name, *save_ptr;
-  struct thread *child;
   struct child_info *info;
+  tid_t tid;
 
   /* Make a copy of FILE_NAME, to avoid race between the parent an the load */
   /* Also, make a separate copy for the process name 
@@ -50,32 +51,45 @@ process_execute (const char *file_name)
     return TID_ERROR;
   }
 
-  info = palloc_get_page(0); /* initializing the child_info structure*/
-  if (info == NULL)
-    return TID_ERROR;
-
-  info->parent_alive = true;
-  info->exitcode = RUNNING;
-  sema_init(&info->sema, 0);
-
   /* Create a new thread to execute FILE_NAME. */
-  child = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
-  if (child == NULL) { /* if thread_create() fails*/
+  tid = thread_create (process_name, PRI_DEFAULT, start_process, fn_copy);
+  /*
+  From now on the child cannot be accessed directly because it might have 
+  already terminated. Instead, child_info struct is used
+  */
+  info = get_child_info(tid);
+  if (tid == TID_ERROR) { /* if thread_create() fails*/
     palloc_free_page (fn_copy); 
-    palloc_free_page (info);
+    list_remove(&info->elem);
     return TID_ERROR;
   }
-  child->info = info; /* link the child to its info */
-  info->tid = child->tid;
   palloc_free_page (process_name);
   sema_down(&info->sema); /* wait until the child finishes loading*/
   if (info->exitcode == FAILED_TO_LOAD) { /* if load() fails*/
     palloc_free_page(info);
+    list_remove(&info->elem);
     return TID_ERROR;
   }
-  /* push the child_info onto the parent's list */
-  list_push_back(&(thread_current()->child_list), &(info->elem));
   return info->tid;
+}
+
+/*
+Look through the list of the current thread's children and find the child
+with the given TID 
+*/
+struct child_info *get_child_info(tid_t tid) {
+  struct list *child_list = &(thread_current()->child_list);
+  struct child_info *result = NULL;
+  struct list_elem *e = NULL;
+
+  if (!list_empty(child_list)) {
+    for (e = list_begin(child_list); e != list_end(child_list); e = list_next(e)) {
+      result = list_entry(e, struct child_info, elem);
+      if (result->tid == tid) 
+        return result;
+    }
+  }
+  return NULL;
 }
 
 /* A thread function that loads a user process and starts it
@@ -129,27 +143,14 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid)
 {
-  struct thread *t = thread_current ();
-  struct list *child_list = &(t->child_list);
-
-  struct child_info *child = NULL;
-  struct list_elem *e = NULL;
-
-  /* Find the child with the given TID*/
-  if (!list_empty(child_list)) {
-    for (e = list_begin(child_list); e != list_end(child_list); e = list_next(e)) {
-      child = list_entry(e, struct child_info, elem);
-      if (child->tid == child_tid) 
-        break;
-    }
-  }
+  struct child_info *child = get_child_info(child_tid);
   if (child == NULL) { /* if such child never existed*/
     return -1; 
   }
   /* Sema_down() makes the parent process wait. If the child already exited,
   it did an up on a semaphore and so the parent will not have to wait*/
   sema_down(&child->sema); 
-  list_remove (e);
+  list_remove (&child->elem);
   int result = child->exitcode;
   /* the child exited. Hence, free the corresponding chidl_info structure */
   palloc_free_page(child); 
