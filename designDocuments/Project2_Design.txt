@@ -35,8 +35,8 @@ http://bits.usc.edu/cs350/assignments/Pintos_Guide_2016_11_13.pdf
 a supplementary to the Pintos documentation
 
 https://github.com/wookayin/pintos
-a GitHub repository which we consulted to get the general sense of how we arrange our system call
- documentation.
+a GitHub repository which we consulted to get the idea of how to validate the 
+pointers for the system calls (we eventually did this differently).
 
 
 *************************Section 1: Argument Passing
