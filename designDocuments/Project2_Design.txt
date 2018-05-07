@@ -35,8 +35,9 @@ http://bits.usc.edu/cs350/assignments/Pintos_Guide_2016_11_13.pdf
 a supplementary to the Pintos documentation
 
 https://github.com/wookayin/pintos
-a GitHub repository which we consulted when we had problems with setting up the stack
-(we could not cast the pointers appropriately)
+a GitHub repository which we consulted to get the general sense of how we arrange our system call
+ documentation.
+
 
 *************************Section 1: Argument Passing
 
