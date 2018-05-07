@@ -37,6 +37,8 @@ a supplementary to the Pintos documentation
 https://github.com/wookayin/pintos
 a GitHub repository which we consulted to get the idea of how to validate the 
 pointers for the system calls (we eventually did this differently).
+We also used this to check that we set up the stack properly, before doing
+system calls
 
 
 *************************Section 1: Argument Passing
@@ -90,7 +92,7 @@ File desription held by the thread that opens that file. We enable linked list f
 that file_descriptors can be put onto a list held by a thread structure.
 
 struct file_descriptor {
-int id;                    /* Unique file id when writing or reading*/
+int id;                    		   /* Unique file id when writing or reading*/
 struct list_elem elem;             /* files_list functionality (struct thread)*/
 struct file *file;                 /* the link to the file described*/
 };
@@ -105,9 +107,9 @@ struct child_info {
 /* the number passed to the exit system call when the child exited.*/
 int exitcode;  /*If exitcode == RUNNING, the thread is still running*/
 
-tid_t tid;                                /* Child's tid*/
-struct list_elem elem;                    /* for child_list functionality */
-struct semaphore sema;                /* the semaphore to wait upon */
+tid_t tid;                         /* Child's tid*/
+struct list_elem elem;             /* for child_list functionality */
+struct semaphore sema;             /* the semaphore to wait upon */
 bool parent_alive;                 /* true if the parent process is still running */
 };
 
